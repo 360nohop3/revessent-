@@ -142,7 +142,7 @@ export async function receiveStripeWebhook(input: {
   const outcome = await withPgAdvisoryLock(db, "revessent:webhook-event", ev.id, async () => {
     const row = await withOrgTx(db, orgId, async (tx) => {
       const [r] = await tx.select().from(schema.webhookEvents).where(
-        and(eq(schema.webhookEvents.orgId, orgId), eq(schema.webhookEvents.externalId, ev.id)));
+        and(eq(schema.webhookEvents.orgId, orgId), eq(schema.webhookEvents.source, "stripe"), eq(schema.webhookEvents.externalId, ev.id)));
       return r;
     });
     if (!row) return { status: "failed" as const, note: "persist_missing" };
@@ -401,13 +401,13 @@ export async function webhookStatus(db: Db, orgId: string, conn: ConnectionRow):
       n: sql<number>`count(*)::int`,
       lastAt: sql<string | null>`max(${schema.webhookEvents.receivedAt})::text`
     }).from(schema.webhookEvents)
-      .where(eq(schema.webhookEvents.orgId, orgId))
+      .where(and(eq(schema.webhookEvents.orgId, orgId), eq(schema.webhookEvents.source, "stripe"))) // tenant feed only; Phase 7 billing rows (source stripe_billing) are a separate feed
       .groupBy(schema.webhookEvents.status));
   const by = Object.fromEntries(rows.map((r) => [r.status, r]));
   const [lastFailure] = await withOrgTx(db, orgId, (tx) =>
     tx.select({ at: schema.webhookEvents.receivedAt, code: schema.webhookEvents.lastError })
       .from(schema.webhookEvents)
-      .where(and(eq(schema.webhookEvents.orgId, orgId), eq(schema.webhookEvents.status, "failed")))
+      .where(and(eq(schema.webhookEvents.orgId, orgId), eq(schema.webhookEvents.source, "stripe"), eq(schema.webhookEvents.status, "failed")))
       .orderBy(desc(schema.webhookEvents.receivedAt)).limit(1));
   const orphaned = await withOrgTx(db, orgId, (tx) =>
     tx.select({ n: sql<number>`count(*)::int` }).from(schema.stripeConnections)
@@ -450,7 +450,9 @@ export async function reconcileFromProvider(
   } catch { executions = ["execution_reconcile_failed"]; }
   await withOrgTx(appDb(), ctx.org.id, (tx) =>
     tx.update(schema.webhookEvents).set({ status: "reconciled" })
-      .where(and(eq(schema.webhookEvents.orgId, ctx.org.id), eq(schema.webhookEvents.status, "failed"))));
+      // tenant feed only: billing events (source stripe_billing) are never
+      // re-applied by this path, so they must keep their honest `failed` state
+      .where(and(eq(schema.webhookEvents.orgId, ctx.org.id), eq(schema.webhookEvents.source, "stripe"), eq(schema.webhookEvents.status, "failed"))));
   return { ...result, lifecycle, executions };
 }
 

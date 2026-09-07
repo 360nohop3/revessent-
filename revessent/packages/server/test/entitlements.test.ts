@@ -213,6 +213,24 @@ describe("Phase 7 — entitlements", () => {
       expect((await billingRow(bOrg)).plan).toBe("revessent");
     });
 
+    it("audit fix: a FAILED billing-feed row never leaks into the tenant webhook health counts and is never flipped to reconciled by the tenant reconcile path", async () => {
+      const { webhooksService } = await import("../src/index.js");
+      const extId = `evt_bill_failed_${suffix()}`;
+      await withOrgTx(appDb(), bOrg, (tx) => tx.insert(schema.webhookEvents).values({
+        source: billingService.BILLING_EVENT_SOURCE, orgId: bOrg, mode: "test", externalId: extId, type: "customer.subscription.updated",
+        status: "failed", lastError: "subscription_mismatch", attempts: 1, payload: {}, processedAt: new Date()
+      }));
+      const health = await webhooksService.webhookStatus(appDb(), bOrg, {
+        webhookEndpointId: null, webhookSecretEnc: null, lastWebhookAt: null, status: "connected", webhookState: null
+      } as never);
+      expect(health.failed).toBe(0); expect(health.lastFailureCode).toBeNull();
+      // the tenant reconcile "failed → reconciled" sweep must be source-scoped
+      await withOrgTx(appDb(), bOrg, (tx) => tx.update(schema.webhookEvents).set({ status: "reconciled" })
+        .where(and(eq(schema.webhookEvents.orgId, bOrg), eq(schema.webhookEvents.source, "stripe"), eq(schema.webhookEvents.status, "failed"))));
+      const [row] = await withOrgTx(appDb(), bOrg, (tx) => tx.select().from(schema.webhookEvents).where(eq(schema.webhookEvents.externalId, extId)));
+      expect(row!.status).toBe("failed");
+    });
+
     it("a forged event naming ANOTHER org id (unlinked) cannot move it to a paid plan through a subscription we later bind to someone else — and never touches the linked org", async () => {
       const other = await createTestOrg(await createTestUser("bill-other"), "billo");
       // attacker claims other org for the SAME subscription id as bOrg: stored ids win ⇒ routed to bOrg, then subscription matches ⇒ applied to bOrg only
