@@ -389,7 +389,9 @@ describe("communication service (Phase 6)", () => {
     const ctx2 = await ctxFor(other, o2.slug, "operate");
     expect(await communicationService.prepareCommunication(ctx2, f.caseId, "retry_failed")).toEqual({ result: "no_such_case" });
     expect(await communicationService.deliverCommunication(ctx2, id)).toEqual({ result: "no_such_message", messageId: id });
-    expect(email.attempts).toHaveLength(0);
+    // Phase 8: sign-up now emails the NEW USER a verification link through the
+    // same provider boundary; only customer-facing recovery sends matter here.
+    expect(email.attempts.filter((m) => m.tag.startsWith("recovery-"))).toHaveLength(0);
     expect((await communicationService.findDueSends(appDb(), o2.orgId, 500, new Date())).some((d) => d.messageId === id)).toBe(false);
     expect((await communicationService.findCommunicationCandidates(appDb(), o2.orgId, 500)).some((c) => c.caseId === f.caseId)).toBe(false);
     const leaked = await withOrgTx(appDb(), o2.orgId, (tx) => tx.select().from(schema.recoveryMessages).where(eq(schema.recoveryMessages.id, id)));

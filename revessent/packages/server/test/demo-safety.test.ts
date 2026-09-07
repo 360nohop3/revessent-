@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
  * Assertions run INSIDE the staged environment (config reads live process.env).
  */
 describe("demo-mode boundary", () => {
-  const KEYS = ["NODE_ENV", "NEXT_PUBLIC_DEMO_MODE", "DATABASE_URL", "BETTER_AUTH_SECRET", "KEY_ENCRYPTION_KEY"] as const;
+  const KEYS = ["NODE_ENV", "NEXT_PUBLIC_DEMO_MODE", "DATABASE_URL", "BETTER_AUTH_SECRET", "KEY_ENCRYPTION_KEY", "BETTER_AUTH_URL"] as const;
 
   async function withEnv(
     env: Partial<Record<(typeof KEYS)[number], string>>,
@@ -72,7 +72,8 @@ describe("demo-mode boundary", () => {
       NODE_ENV: "production",
       DATABASE_URL: "postgres://x@localhost:5433/x",
       BETTER_AUTH_SECRET: "0123456789abcdef0123456789abcdef",
-      KEY_ENCRYPTION_KEY: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+      KEY_ENCRYPTION_KEY: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+      BETTER_AUTH_URL: "https://app.revessent.example" // Phase 8: https origin is mandatory in production
     }, (config) => {
       expect(config.serverEnv().DATABASE_URL).toContain("postgres://");
     });
