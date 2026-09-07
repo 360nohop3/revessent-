@@ -1,0 +1,12 @@
+@import "tailwindcss";
+@import "../styles/fonts.css";
+/* Design tokens extracted verbatim from the approved visual reference. */
+@import "../../../../packages/ui/styles/tokens.css";
+/* Compile Tailwind utilities used inside the ui package's components. */
+@source "../../../../packages/ui/src";
+
+/* Brand mark gradient (from the reference) */
+.bmark-grad { --bmg-start: #fff7e6; --bmg-end: #f0e2c6; }
+
+/* Tabular figures for all numeric UI (from the reference). */
+.num { font-variant-numeric: tabular-nums; }

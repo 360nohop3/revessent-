@@ -1,0 +1,229 @@
+/* ============================================================
+   REVESSENT DESIGN TOKENS
+   Extracted verbatim from the approved visual reference
+   ("revessent (2).html") — light (Daylight), dark (Quiet Pewter),
+   amoled (Pure Black). Do not redesign; adjust only via tokens.
+   ============================================================ */
+
+:root {
+  --canvas: #f9f4ea;
+  --page: #f1e8d4;
+  --text-primary: #1D1C1A;
+  --text-secondary: #3C3B37;
+  --text-muted: #6B6860;
+  --text-faint: #8E8C86;
+  --text-inverse: #FDFCF8;
+
+  --glass1: rgba(255, 253, 247, 0.42);
+  --glass2: rgba(255, 253, 248, 0.58);
+  --glass3: rgba(255, 254, 250, 0.74);
+  --glass-solid: rgba(252, 249, 241, 0.88);
+
+  --cc: 255 253 247;   /* interior surface tint (chips, wells) */
+  --lc: 112 90 55;     /* quiet line tint */
+  --edge: rgba(255, 255, 255, 0.68);
+  --line: rgb(112 90 55 / 0.16);
+  --line-soft: rgb(112 90 55 / 0.10);
+
+  --btnA: #35639a; --btnAtx: #fbf6ec;
+  --ok: #8ba889; --okTx: #5f7450; --err: #c06a52; --warn: #b08a4f; --warnTx: #6d5426;
+  --accC: 109 159 214;
+  --acc: #6d9fd6; --acc-ink: #35608f;
+
+  --sh-sm: inset 0 1px 0 rgba(255,255,255,.6), 0 1px 1px rgba(64,48,26,.05), 0 10px 28px -20px rgba(64,48,26,.25);
+  --sh-md: inset 0 1px 0 rgba(255,255,255,.72), 0 1px 1px rgba(64,48,26,.05), 0 22px 46px -22px rgba(64,48,26,.32);
+  --blur: 20px;
+}
+
+/* Sooty Bamboo #5A544B · Quiet Pewter #C4C6C9 · Cloud Grey #55585E */
+html[data-theme="dark"] {
+  --canvas: #1c1a17; --page: #161512;
+  --text-primary: #EFECE4; --text-secondary: #C4C6C9; --text-muted: #96938C;
+  --text-faint: #7d7a74; --text-inverse: #161512;
+
+  --glass1: rgba(34, 32, 28, 0.50);
+  --glass2: rgba(39, 37, 33, 0.64);
+  --glass3: rgba(45, 43, 38, 0.78);
+  --glass-solid: rgba(32, 30, 26, 0.94);
+
+  --cc: 42 40 36;
+  --lc: 196 198 201;
+  --edge: rgba(224, 222, 214, 0.20);
+  --line: rgb(196 198 201 / 0.16);
+  --line-soft: rgb(196 198 201 / 0.10);
+
+  --btnA: #C4C6C9; --btnAtx: #1d1b18;
+  --ok: #8FA089; --okTx: #d5dfc9; --err: #D79A82; --warn: #cfa96b; --warnTx: #ecd9b5;
+  --accC: 196 198 201;
+  --acc: #C4C6C9; --acc-ink: #EFECE4;
+
+  --sh-sm: inset 0 1px 0 rgba(255,255,255,.10), 0 1px 1px rgba(0,0,0,.35), 0 10px 28px -20px rgba(0,0,0,.62);
+  --sh-md: inset 0 1px 0 rgba(255,255,255,.12), 0 1px 1px rgba(0,0,0,.4), 0 22px 46px -22px rgba(0,0,0,.7);
+}
+
+/* Pure black (AMOLED) */
+html[data-theme="amoled"] {
+  --canvas: #000000; --page: #000000;
+  --text-primary: #E9E9ED; --text-secondary: #A0A6B2; --text-muted: #7A808C;
+  --text-faint: #666c78; --text-inverse: #FDFCF8;
+
+  --glass1: rgba(255, 255, 255, 0.030);
+  --glass2: rgba(255, 255, 255, 0.055);
+  --glass3: rgba(255, 255, 255, 0.085);
+  --glass-solid: #0a0a0c;
+
+  --cc: 22 25 33;
+  --lc: 96 108 130;
+  --edge: rgba(255, 255, 255, 0.13);
+  --line: rgb(120 134 160 / 0.20);
+  --line-soft: rgb(120 134 160 / 0.12);
+
+  --btnA: #69a6e8; --btnAtx: #02131f;
+  --ok: #61956f; --okTx: #cde8c2; --err: #e5947c; --warn: #d9b36b; --warnTx: #eed9ae;
+  --accC: 105 166 232;
+  --acc: #69a6e8; --acc-ink: #9cc4ef;
+
+  --sh-sm: inset 0 1px 0 rgba(255,255,255,.07), 0 1px 1px rgba(0,0,0,.6), 0 12px 30px -14px rgba(0,0,0,.9);
+  --sh-md: inset 0 1px 0 rgba(255,255,255,.09), 0 1px 1px rgba(0,0,0,.65), 0 24px 52px -18px rgba(0,0,0,.95);
+  --blur: 7px;
+}
+
+/* ── Tailwind 4 theme bridge: tokens become utilities (text-ink, bg-page, …) ── */
+@theme inline {
+  --color-page: var(--page);
+  --color-canvas: var(--canvas);
+  --color-ink: var(--text-primary);
+  --color-ink-2: var(--text-secondary);
+  --color-ink-3: var(--text-muted);
+  --color-ink-4: var(--text-faint);
+  --color-inverse: var(--text-inverse);
+  --color-accent: var(--acc);
+  --color-accent-ink: var(--acc-ink);
+  --color-action: var(--btnA);
+  --color-action-ink: var(--btnAtx);
+  --color-ok: var(--ok);
+  --color-ok-ink: var(--okTx);
+  --color-err: var(--err);
+  --color-warn: var(--warn);
+  --color-warn-ink: var(--warnTx);
+  --color-edge: var(--edge);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-well: rgb(var(--cc));
+
+  --radius-sm: 12px;
+  --radius-md: 17px;
+  --radius-lg: 22px;
+  --radius-xl: 26px;
+
+  --font-sans: "Manrope RV", -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Instrument Serif RV", "Iowan Old Style", Palatino, Georgia, Cambria, serif;
+  --font-mono: "IBM Plex Mono RV", ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* ── Base ── */
+body {
+  font-family: var(--font-sans, system-ui, sans-serif);
+  color: var(--text-primary);
+  background: var(--page);
+  font-weight: 450;
+  line-height: 1.68;
+  letter-spacing: -0.01em;
+  font-size: 16.5px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+::selection { background: var(--acc); color: #f4f9ff; }
+:focus-visible { outline: 2px solid var(--acc-ink); outline-offset: 3px; border-radius: 10px; }
+
+/* ── Frosted glass surfaces (demo recipe) ── */
+.glass {
+  position: relative;
+  border: 1px solid var(--edge);
+  border-radius: 22px;
+  background: var(--glass1);
+  box-shadow: var(--sh-sm);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.18) brightness(1.02);
+  backdrop-filter: blur(var(--blur)) saturate(1.18) brightness(1.02);
+}
+.glass-2 { background: var(--glass2); }
+.glass-3 { background: var(--glass3); }
+.glass-solid { background: var(--glass-solid); }
+
+/* ── Buttons (demo recipes) ── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  border-radius: 999px; font-weight: 600; font-size: 14.5px;
+  padding: 12px 24px; white-space: nowrap; letter-spacing: 0.002em;
+  -webkit-tap-highlight-color: transparent; cursor: pointer;
+  transition: background-color .3s ease, color .3s ease, border-color .3s ease, box-shadow .3s ease, transform .2s ease, opacity .2s ease;
+}
+.btn:disabled, .btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn-pri {
+  background: var(--btnA); color: var(--btnAtx);
+  box-shadow: inset 0 1px 0 rgb(var(--cc) / .16), 0 16px 30px -18px rgba(64,48,26,.55);
+}
+.btn-glass {
+  background: rgb(var(--cc) / .56);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  border: 1px solid var(--edge); box-shadow: var(--sh-sm);
+  color: var(--text-primary); font-weight: 600;
+}
+.btn-ghost { background: transparent; color: var(--text-secondary); }
+.btn-ghost:hover { background: rgb(var(--cc) / .5); }
+.btn-danger { background: var(--err); color: #fff; }
+.btn-sm { padding: 8px 16px; font-size: 13.5px; }
+
+/* ── Pills / badges ── */
+.pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12.5px; font-weight: 620; color: var(--text-secondary);
+  border: 1px solid var(--edge); background: rgb(var(--cc) / .4);
+  padding: 6px 13px; border-radius: 999px;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  box-shadow: var(--sh-sm);
+}
+
+/* ── Serif editorial accent ── */
+.serif-em {
+  font-family: var(--font-serif, Georgia, serif);
+  font-style: italic; font-weight: 400; font-size: 1.045em;
+  letter-spacing: -0.01em; color: var(--acc-ink);
+}
+
+/* ── Inputs ── */
+.input {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: rgb(var(--cc) / .55);
+  border-radius: 14px;
+  padding: 12px 16px;
+  font: inherit; color: var(--text-primary);
+  transition: border-color .2s ease, background-color .2s ease;
+}
+.input::placeholder { color: var(--text-faint); }
+.input:hover { border-color: rgb(var(--lc) / .35); }
+
+/* ── Skeleton shimmer (reduced-motion aware) ── */
+.skl {
+  border-radius: 12px;
+  background: linear-gradient(90deg, rgb(var(--cc) / .35) 25%, rgb(var(--cc) / .7) 45%, rgb(var(--cc) / .35) 65%);
+  background-size: 240% 100%;
+  animation: skl 1.5s ease-in-out infinite;
+}
+@keyframes skl { 0% { background-position: 120% 0; } 100% { background-position: -120% 0; } }
+
+/* ── Motion & contrast defaults ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001s !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media (forced-colors: active) {
+  .glass, .pill, .input { border: 1px solid CanvasText; backdrop-filter: none; }
+  .btn-pri { background: ButtonText; color: ButtonFace; }
+}

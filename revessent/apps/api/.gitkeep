@@ -1,0 +1,4 @@
+# apps/api — reserved.
+# Phase 2 (this repo state) implements only apps/web.
+# api  -> Phase 3 (backend + database) / Phase 4 (auth + security)
+# worker -> Phase 5+ (BullMQ workers, retry engine)

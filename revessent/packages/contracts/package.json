@@ -1,0 +1,19 @@
+{
+  "name": "@revessent/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@revessent/domain": "workspace:*",
+    "zod": "4.5.4",
+    "@revessent/config": "workspace:*",
+    "@revessent/observability": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  }
+}

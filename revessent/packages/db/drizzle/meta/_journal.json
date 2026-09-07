@@ -1,0 +1,167 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1788624685004,
+      "tag": "0000_init_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788624690593,
+      "tag": "0001_rls_and_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788624737595,
+      "tag": "0002_audit_worm_fix",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788625079432,
+      "tag": "0003_public_token_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788625653197,
+      "tag": "0004_better_auth_issuer",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788626039341,
+      "tag": "0005_token_rls_cycle_fix",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788626374293,
+      "tag": "0006_rls_column_shadowing_fix",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788628539720,
+      "tag": "0007_memberships_rls_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788628698819,
+      "tag": "0008_memberships_read_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788628978338,
+      "tag": "0009_membership_org_read",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788644180488,
+      "tag": "0010_stripe_sync_4a",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788647130083,
+      "tag": "0011_revoke_destroys_credential",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788665132810,
+      "tag": "0012_webhooks_4b",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788665396579,
+      "tag": "0013_webhook_resolve_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1788665909492,
+      "tag": "0014_webhook_scope_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1788666031289,
+      "tag": "0015_webhook_org_scope_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1788667546342,
+      "tag": "0016_lifecycle_states",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788669332944,
+      "tag": "0017_payment_execution",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788669333944,
+      "tag": "0018_retry_policy_version",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788669334944,
+      "tag": "0019_recovery_attempt_number",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1788669335944,
+      "tag": "0020_job_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788669336944,
+      "tag": "0021_communications",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1788722733364,
+      "tag": "0022_communication_suppressions",
+      "breakpoints": true
+    }
+  ]
+}

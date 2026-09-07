@@ -1,0 +1,15 @@
+{
+  "name": "@revessent/integrations",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fixtures": "./src/fixtures.ts",
+    "./email-fixtures": "./src/email-fixtures.ts"
+  },
+  "dependencies": {
+    "server-only": "0.0.1",
+    "stripe": "22.6.1"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@revessent/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "better-auth": "1.7.2",
+    "@noble/hashes": "2.0.1",
+    "@revessent/db": "workspace:*",
+    "@revessent/domain": "workspace:*",
+    "@revessent/contracts": "workspace:*",
+    "@revessent/config": "workspace:*",
+    "@revessent/observability": "workspace:*",
+    "drizzle-orm": "0.45.2",
+    "zod": "4.5.4",
+    "@revessent/integrations": "workspace:*",
+    "@revessent/ai": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  }
+}
