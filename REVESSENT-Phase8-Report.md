@@ -3,7 +3,7 @@
 Date: 2026-09-07. Base: Phase 7 closed at `67e8bf3`. Phase 8 commits: `56b94bc` (hardening corrections), `625bbee` (test alignment + env template), `7135620` (hardening report), `d901ab3` (**Hosted Recovery Checkout correction**), plus this report update.
 Method: read every phase report and the architecture, then audited the **repository as it is** — reports were treated as claims. Live Stripe / Postmark / Anthropic were **not** called; every provider interaction below ran against the existing deterministic fixtures. Nothing was deployed.
 
-**STATUS: `CORRECTION COMPLETE — READY FOR INDEPENDENT FINAL AUDIT`** (see §28). The earlier hardening verdict at `7135620` was **reopened** by the owner: Hosted Recovery Checkout (previously deferred as P2) is required for the initial production launch. That correction is now implemented; this document does **not** declare production readiness — it awaits independent review.
+**FINAL STATUS (§30): `PRODUCTION READY WITH ACCEPTED NON-BLOCKING RISKS`** — conditional on the DEPLOYMENT-SPECIFIC checks in §30.3/§30.5 being performed during the real staging deployment, foremost one live Stripe test-mode transaction (no live provider was reachable from this sandbox). History: hardening verdict at `7135620` → reopened for the Hosted Recovery Checkout correction (`d901ab3`, §28) → final production verification (§30).
 
 ---
 
@@ -332,3 +332,110 @@ Invariants checked in code and tests: provider/customer identity, invoice, amoun
 **CORRECTION COMPLETE — READY FOR INDEPENDENT FINAL AUDIT**
 
 Production readiness is **not** declared here. The independent audit should confirm §28.4 invariants in code, the §28.5 gates, and perform the live test-mode pass described in §28.6.
+
+---
+
+## 30. Final Production Verification
+
+Date: 2026-09-07. Repository state verified: branch `arena/01a077b8-revessent`, HEAD `bca22c7` (= `d901ab3` correction + report), working tree clean. Environment facts established before any claim: **no Stripe, Postmark or Anthropic credentials exist in this sandbox** (env and `.env*` files inspected by name only — just the two example templates), **outbound network is unavailable** (`api.stripe.com` unreachable), Redis is not running, local Postgres is. Nothing was deployed.
+
+### 30.1 VERIFIED (actually proven here)
+
+**Final gates — exact counts (re-run at HEAD):**
+
+| Gate | Result |
+|---|---|
+| Full Vitest (all projects) | **53 files / 533 tests passed · 0 failed · 0 skipped · 0 todo** |
+| checkout-hosted | 26/26 |
+| payment-execution / retry-identity / retry-automation | 52 / 22 / 21 |
+| webhook-receive / -lifecycle / -verify | 24 / 15 / 7 |
+| stripe-concurrency / stripe-tenancy / tenancy / cross-org-mutation / rls-hardening / rbac | 6 / 5 / 9 / 3 / 6 / 5 |
+| entitlements (incl. billing-webhook forgery/out-of-order/seat concurrency) | 20 |
+| communication / suppression | 17 / 7 |
+| worker (notes-queue, processing, crash-recovery, queue-identity, scheduler, tenant-isolation, durable-lifecycle, runtime, redis-loss) | 12+10+7+7+7+4+7+3+3 = 60 |
+| auth-lifecycle / ratelimit / production-config / demo-safety | 5 / 4 / 5 / 7 |
+| ai-boundary | 25 |
+| migrations test | 1 |
+| TypeScript + ESLint (turbo) | 18/18 tasks |
+| Production build (`NEXT_PUBLIC_DEMO_MODE=off`) | 2/2 |
+| Migrations fresh replay | 26 files (0000–0025) applied on an empty database; 33 tables |
+| RLS | every tenant table has RLS; the only table without it is `auth_rate_limits` (pre-authentication, non-tenant, by design in 0024) |
+| Grants (`revessent_app`) | `audit_logs` INSERT,SELECT only (append-only); DML on ledgers/tenant tables; SECURITY DEFINER set unchanged: `caller_is_member, case_org_id, member_write_allowed, resolve_billing_org, resolve_billing_org_unlinked, resolve_webhook_connection` |
+| Upgrade replay | 0000–0024 + seeded rows → 0025: rows preserved (§28.5) |
+| `pnpm audit --prod` | 1 moderate (esbuild, dev-only toolchain; unchanged) |
+| Secret scan | tree: only test fixture strings; browser bundle (`apps/web/.next/static`): **no key material** — matches were the zod env *schema key names* in the shared config module, no values |
+
+**Production configuration (code-enforced, tests `production-config`/`demo-safety`):** `BETTER_AUTH_URL` must be `https://` in production (ConfigError otherwise); `APP_PUBLIC_URL` https-enforced; `NEXT_PUBLIC_DEMO_MODE=on` under `NODE_ENV=production` throws at startup; `DATABASE_URL`/`APP_DATABASE_URL`, `REDIS_URL`, `BETTER_AUTH_SECRET`, `KEY_ENCRYPTION_KEY`, `POSTMARK_SERVER_TOKEN`, `ANTHROPIC_API_KEY`, `BILLING_WEBHOOK_SECRET` are read **only** via `serverEnv()`/server modules; the only `process.env.*` in browser-reachable code is `NEXT_PUBLIC_DEMO_MODE` and `NODE_ENV` (the two other matches are the server-only `/api/health` route reporting `configured|missing`, never values). No `.env` file is tracked; `.gitignore` excludes `.env` and `.env*.local`. Tenant Stripe keys are stored encrypted (`key_ciphertext`, `KEY_ENCRYPTION_KEY`) and decrypted server-side only.
+
+**Security smoke (each demonstrated by a passing test at HEAD):**
+
+| Hostile check | Evidence |
+|---|---|
+| cross-tenant customer access | tenancy ×9, stripe-tenancy ×5, rls-hardening ×6 (query layer **and** RLS direct PK lookup) |
+| cross-tenant recovery token | checkout-hosted "cross-org", suppression "TENANT" |
+| forged checkout request | checkout-hosted: malformed/forged/expired/rotated → `unknown|expired`, 0 provider calls, strict empty body, same-origin |
+| forged billing webhook | entitlements: unsigned/wrong-secret → 400 applies nothing; forged metadata org / different subscription skipped |
+| forged tenant Stripe webhook | webhook-verify ×7 (missing/malformed/wrong-secret/tampered/stale), account-mismatch skipped |
+| duplicate webhook | webhook-receive equal-timestamp + duplicate-after-failure; checkout-hosted dup+delayed |
+| out-of-order webhook | webhook-receive superseded; entitlements older past_due after active skipped |
+| duplicate payment execution | payment-execution ×52 (DB unique idempotency + provider key + post-lock revalidation), retry-identity ×22, checkout-hosted regression |
+| unauthorized entitlement | entitlements: `organizations.plan` display-only; cross-org read/invite refused; no member mutation surface |
+| unauthorized worker execution | worker tenant-isolation: forged payload executes nothing; job_runs RLS |
+| unsubscribe bypass | suppression ×7 incl. send-time check and race |
+| secret exposure | webhook-lifecycle orphan "no secret exposure"; checkout audit hygiene; bundle scan |
+
+No new vulnerability was demonstrated or evidenced in this pass.
+
+**Final financial invariant — holds, evidence:**
+
+> No browser request, AI response, entitlement decision, retry decision, webhook redirect, or local database mutation can fabricate a successful financial recovery.
+
+Exhaustive enumeration at HEAD (grep of every writer):
+- `payments.status = 'paid'` is written in exactly three places: `sync.applyProviderInvoice` (input = provider invoice object from a **signature-verified webhook** or an authenticated **provider read**), `execute.ts:497` (only when the provider's `invoices.pay` response says `paid`), `execute.ts:678` (only when `getInvoicePaymentStatus` read from the provider says `paid`).
+- `recovery_cases.status = 'recovered'` is written in exactly two places: `execute.markCaseRecovered` and `checkout.applyCheckoutCompletion` — **both re-read the payment row and return `false` unless `status === 'paid'`**, and both refuse terminal cases. Callers: execution success, reconciliation success, retry success, and the invoice-apply choke point. No HTTP route, no worker payload field, no AI module (`packages/ai` imports no DB), no entitlement code, and no communication code writes `paid` or `recovered` (communication only moves cases to `contacting`).
+- The browser's only inputs to the recovery flow are the case id (authenticated, org-scoped) and the public token; `POST /c/{token}` returns a state and a provider-owned URL and writes only `started_at/start_count` — there is no success/confirm endpoint. A `success` redirect cannot reach any writer above.
+- AI output is validated (`AiCopySchema`), sanitized, and consumed only as message copy; `ai-boundary` (25) proves it cannot carry ids, amounts or instructions into decisions.
+- Entitlements gate *whether* an action may run, never its outcome; a downgrade holds messages, it cannot mark anything paid.
+
+### 30.2 NOT VERIFIED (external services unavailable — not software defects)
+
+- **NOT VERIFIED — LIVE STRIPE TEST ENVIRONMENT UNAVAILABLE.** No test-mode key, no connected test account, no outbound network. The end-to-end sequence (test customer → open invoice → hosted URL → connect → `/c/{token}` → pay on Stripe → `invoice.paid` → `payments.paid` → case `recovered` → duplicate delivery safe) was executed **only** against the fixture gateway plus real signed webhook receipt (checkout-hosted 26, webhook-receive 24). The one live-dependent assumption remains C1 (§28.7): `invoices.retrieve` returning `hosted_invoice_url` under the restricted key. Fail-closed if false.
+- **NOT VERIFIED — LIVE POSTMARK ENVIRONMENT UNAVAILABLE.** Verification / reset / recovery emails, suppression and no-secret logging are proven only through the email fixture provider (auth-lifecycle 5, communication 17, suppression 7).
+- **NOT VERIFIED — LIVE AI ENVIRONMENT UNAVAILABLE.** Structured-output validation, fallback and financial isolation proven only with the AI fake (ai-boundary 25, communication).
+
+These three are launch-relevant but **verifiable in a few minutes on staging with test-mode credentials**; they are therefore carried as DEPLOYMENT-SPECIFIC pre-launch checks, not as accepted unknowns.
+
+### 30.3 DEPLOYMENT-SPECIFIC (must be checked on real staging/production)
+
+1. Live Stripe test-mode pass exactly as listed in the objective (steps 1–12), including one duplicate `invoice.paid` redelivery from the Stripe dashboard.
+2. Live Postmark: one verification, one password-reset, one recovery communication to an owned inbox; confirm `[auth-email]`/communication logs show no token or address beyond redaction; unsubscribe link suppresses.
+3. Live Anthropic: one generation; confirm schema validation passes, a forced failure falls back to the template path.
+4. `GET /api/health` reports every dependency `configured`/`ok` with production env.
+5. Webhook endpoint URLs are reachable from Stripe over https (tenant per-connection endpoints are auto-registered on connect; the **billing** endpoint must be registered manually with `BILLING_WEBHOOK_SECRET`).
+6. Redis reachable from the worker; `WORKER_HEALTH_PORT` probe green; one scheduled retry observed end-to-end.
+7. `KEY_ENCRYPTION_KEY`, `BETTER_AUTH_SECRET` generated fresh (32+ bytes), stored in the platform secret manager only.
+8. Multi-replica note: the member-start limiter and auth in-memory limiter are per-process (durable auth limiter is DB-backed); acceptable, documented C3/R4.
+
+### 30.4 Deployment operator checklist
+
+- **Env vars**: populate from `revessent/.env.production.example` — `NODE_ENV=production`, `DATABASE_URL` (migrator/owner) and `APP_DATABASE_URL` (`revessent_app`, RLS-bound), `MIGRATE_DATABASE_URL`, `BETTER_AUTH_URL`/`APP_PUBLIC_URL` (https), `BETTER_AUTH_SECRET`, `KEY_ENCRYPTION_KEY`, `REDIS_URL`, `POSTMARK_SERVER_TOKEN`/`POSTMARK_MESSAGE_STREAM`/`EMAIL_FROM_ADDRESS`, `ANTHROPIC_API_KEY`/`AI_MODEL`, `BILLING_WEBHOOK_SECRET`/`BILLING_LIVEMODE`, worker knobs. **Never set `NEXT_PUBLIC_DEMO_MODE`.**
+- **Database**: create roles per 0001 (`revessent_app` with password from secret store); run `pnpm --filter @revessent/db migrate` with `MIGRATE_DATABASE_URL` (owner) — expect 0000–0025; verify `select count(*) from pg_tables where schemaname='public' and not rowsecurity` = 1 (`auth_rate_limits`).
+- **Redis**: managed instance, TLS, `maxmemory-policy noeviction` (BullMQ requirement).
+- **Web**: `NEXT_PUBLIC_DEMO_MODE` unset, `pnpm turbo run build`, start `apps/web`; confirm `/api/health` 200.
+- **Worker**: deploy `apps/worker` with the same DB/Redis/secrets; single replica initially (R4); confirm health port.
+- **Stripe tenant webhooks**: automatic on connect (restricted key with read scopes + `invoices.pay` write); verify endpoint appears in the tenant's Stripe dashboard and `lastWebhookAt` moves.
+- **Revessent billing webhook**: register `https://<APP>/api/v1/billing/webhook` (path per `billing.ts`) on the Revessent Stripe account; events `customer.subscription.*`, `invoice.*`; paste secret into `BILLING_WEBHOOK_SECRET`; set `BILLING_LIVEMODE` to match.
+- **Postmark**: verified sender domain (DKIM/Return-Path), message stream matching `POSTMARK_MESSAGE_STREAM`.
+- **AI**: key with spend cap; `AI_TIMEOUT_MS` ≤ 12000.
+- **HTTPS/domain**: TLS at the edge; `BETTER_AUTH_URL` = canonical origin exactly (cookies/CSRF depend on it).
+- **Health/readiness**: `/api/health` (web) + worker health port in the orchestrator probes.
+- **First test transaction**: a staging org connected to a Stripe **test** account; run §30.3 step 1 before any live-mode key is entered.
+- **Rollback**: migrations 0025 and earlier are additive (`add column if not exists`) — a code rollback to `7135620` is safe against a 0025 database; keep the previous image; no data migration to reverse. Do not roll back below 0024 without restoring the DB.
+
+### 30.5 Final status
+
+**PRODUCTION READY WITH ACCEPTED NON-BLOCKING RISKS**
+
+Reasoning, stated plainly: every launch-critical behaviour that *can* be proven without external services is proven at HEAD with exact counts, the financial invariant holds by exhaustive enumeration of writers, and no vulnerability was demonstrated. What remains unproven is exactly the live-provider behaviour (Stripe/Postmark/Anthropic), which cannot be exercised from this sandbox but **must** be exercised on staging per §30.3 before any live-mode key is used — that is a gate the deployment operator owns, not a software defect. Accepted non-blocking risks are unchanged: R1–R4, R6, R7, C1–C5, P1, P3.
+
+Implementation is finished. No Phase 9 is created. Stopping here for independent review.
