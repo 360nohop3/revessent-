@@ -9,7 +9,7 @@ import { ApiError, type ApiClient, type CaseFilters, type CustomerFilters, type 
 import {
   OrgSchema, OverviewSchema, RecoveryCaseSchema, TimelineEntrySchema, OpportunitySchema,
   CustomerSchema, StripeConnectionSchema, RetryPolicySchema, VoiceProfileSchema, SyncResponseSchema,
-  TeamMemberSchema, BillingInfoSchema, RecoveryTokenSchema, UpgradeTokenSchema,
+  TeamMemberSchema, BillingInfoSchema, EntitlementsSchema, RecoveryTokenSchema, UpgradeTokenSchema,
   MessageDraftSchema, RecoveryExecutionSchema } from "../schemas";
 
 async function parseProblem(res: Response): Promise<never> {
@@ -100,7 +100,8 @@ export function createRealApi(): ApiClient {
       team: (slug) => getJson(`${org(slug)}/settings/team`, z.array(TeamMemberSchema)),
       invite: (slug, input) => sendJson(`${org(slug)}/settings/team/invitations`, "POST", input,
         z.object({ invited: z.literal(true), emailSent: z.literal(false), team: z.array(TeamMemberSchema) })),
-      billing: (slug) => getJson(`${org(slug)}/settings/billing`, BillingInfoSchema)
+      billing: (slug) => getJson(`${org(slug)}/settings/billing`, BillingInfoSchema),
+      entitlements: (slug) => getJson(`${org(slug)}/entitlements`, EntitlementsSchema)
     },
 
     subscriber: {

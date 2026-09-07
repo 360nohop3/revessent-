@@ -1,5 +1,5 @@
 import type {
-  BillingInfo, Customer, MessageDraft, Opportunity, Org,
+  BillingInfo, Customer, Entitlements, MessageDraft, Opportunity, Org,
   Overview, Problem, RecoveryCase, RecoveryTokenInfo, RetryPolicy,
   StripeConnection, TeamMember, TimelineEntry, UpgradeTokenInfo, VoiceProfile, Role
 } from "./schemas";
@@ -63,6 +63,8 @@ export interface ApiClient {
     team(slug: string): Promise<TeamMember[]>;
     invite(slug: string, input: { email: string; role: Role }): Promise<{ invited: true; emailSent: boolean; team: TeamMember[] }>;
     billing(slug: string): Promise<BillingInfo>;
+    /** Phase 7: server-resolved capabilities/limits/usage (display only; the server enforces). */
+    entitlements(slug: string): Promise<Entitlements>;
   };
 
   subscriber: {

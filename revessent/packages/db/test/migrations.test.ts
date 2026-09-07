@@ -72,6 +72,32 @@ describe("migrations are deterministic", () => {
       const supUq = await check.query("select 1 from pg_indexes where tablename='communication_suppressions' and indexname='communication_suppressions_org_customer_channel_uq'");
       expect(supUq.rows).toHaveLength(1);
 
+      // Phase 7 (0023): billing state columns, lookup indexes, SECURITY DEFINER
+      // resolvers granted to the app role, organizations UPDATE limited to (plan, updated_at)
+      const billCols = await check.query(
+        "select column_name from information_schema.columns where table_name='org_subscriptions' and column_name in ('current_period_end','cancel_at_period_end','provider_updated_at','last_event_id','plan_source','created_at')"
+      );
+      expect(billCols.rows.map((r) => r.column_name as string).sort()).toEqual(
+        ["cancel_at_period_end", "created_at", "current_period_end", "last_event_id", "plan_source", "provider_updated_at"]
+      );
+      const billIdx = await check.query("select indexname from pg_indexes where tablename='org_subscriptions' and indexname in ('org_subscriptions_stripe_customer_idx','org_subscriptions_stripe_subscription_idx')");
+      expect(billIdx.rows).toHaveLength(2);
+      const fns = await check.query(
+        "select p.proname, p.prosecdef, has_function_privilege('revessent_app', p.oid, 'execute') as ok from pg_proc p where p.proname in ('resolve_billing_org','resolve_billing_org_unlinked')"
+      );
+      expect(fns.rows).toHaveLength(2);
+      expect(fns.rows.every((r) => r.prosecdef === true && r.ok === true)).toBe(true);
+      const orgColGrants = await check.query(
+        "select column_name from information_schema.role_column_grants where grantee='revessent_app' and table_name='organizations' and privilege_type='UPDATE'"
+      );
+      expect(orgColGrants.rows.map((r) => r.column_name as string).sort()).toEqual(["plan", "updated_at"]);
+      const orgTableUpdate = await check.query(
+        "select 1 from information_schema.role_table_grants where grantee='revessent_app' and table_name='organizations' and privilege_type='UPDATE'"
+      );
+      expect(orgTableUpdate.rows).toHaveLength(0);
+      const pol = await check.query("select policyname from pg_policies where tablename='organizations' and policyname='org_self_update'");
+      expect(pol.rows).toHaveLength(1);
+
       // app role cannot mutate audit logs (WORM)
       await check.query("select set_config('app.org_id', gen_random_uuid()::text, true)");
       await expect(check.query("update audit_logs set action='tampered'")).rejects.toThrow();

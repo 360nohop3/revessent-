@@ -9,6 +9,7 @@ export const qk = {
     ["org", slug, "cases", filters] as const,
   case: (slug: string, id: string) => ["org", slug, "case", id] as const,
   opportunities: (slug: string) => ["org", slug, "opportunities"] as const,
+  entitlements: (slug: string) => ["org", slug, "entitlements"] as const,
   opportunity: (slug: string, id: string) => ["org", slug, "opportunity", id] as const,
   customers: (slug: string, filters: { q?: string; status?: string }) =>
     ["org", slug, "customers", filters] as const,

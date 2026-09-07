@@ -558,8 +558,16 @@ export const orgSubscriptions = pgTable("org_subscriptions", {
   guaranteeStartedAt: timestamp("guarantee_started_at", { withTimezone: true }),
   guaranteeEndsAt: timestamp("guarantee_ends_at", { withTimezone: true }),
   refundedAt: timestamp("refunded_at", { withTimezone: true }),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
-});
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  // Phase 7 (0023): synchronized billing state (Stripe Billing is the authority)
+  currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+  providerUpdatedAt: timestamp("provider_updated_at", { withTimezone: true }),
+  lastEventId: text("last_event_id"),
+  planSource: text("plan_source").notNull().default("default"), // default | stripe_billing | operator
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+}, (t) => [index("org_subscriptions_stripe_customer_idx").on(t.stripeCustomerId),
+  index("org_subscriptions_stripe_subscription_idx").on(t.stripeSubscriptionId)]);
 
 export const digests = pgTable("digests", {
   id: uuid().primaryKey().$defaultFn(() => uuidv7()),

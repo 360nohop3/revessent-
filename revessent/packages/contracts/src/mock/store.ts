@@ -376,7 +376,8 @@ function buildAcornBooks(): OrgRecord {
       plan: "revessent", status: "trialing",
       pilotEndsAt: new Date(NOW() + 9 * DAY).toISOString(),
       guaranteeWindowEndsAt: new Date(NOW() + 81 * DAY).toISOString(),
-      billingProviderLive: false
+      billingProviderLive: false, currentPeriodEnd: null, cancelAtPeriodEnd: false,
+      effectivePlan: "revessent", restricted: false, reasons: ["subscription_trialing"]
     }
   };
 }
@@ -410,7 +411,8 @@ function buildFernbrook(): OrgRecord {
     team: [{ id: "tm_f1", name: "Ines Kovač", email: "ines@fernbrook.example", role: "owner" }],
     billing: {
       plan: "ember", status: "active", pilotEndsAt: null,
-      guaranteeWindowEndsAt: null, billingProviderLive: false
+      guaranteeWindowEndsAt: null, billingProviderLive: false, currentPeriodEnd: null, cancelAtPeriodEnd: false,
+      effectivePlan: "ember", restricted: false, reasons: ["free_plan"]
     }
   };
 }
@@ -465,7 +467,7 @@ export class DemoStore {
       },
       voice: { sampleText: "", styleSummary: "", greeting: "Hi {firstName} —", signoff: "" },
       team: [{ id: "tm_owner", name: "You (demo)", email: "priya@acornbooks.example", role: "owner" }],
-      billing: { plan: "ember", status: "trialing", pilotEndsAt: null, guaranteeWindowEndsAt: null, billingProviderLive: false }
+      billing: { plan: "ember", status: "trialing", pilotEndsAt: null, guaranteeWindowEndsAt: null, billingProviderLive: false, currentPeriodEnd: null, cancelAtPeriodEnd: false, effectivePlan: "ember", restricted: false, reasons: ["free_plan"] }
     };
     this.orgs.set(slug, rec);
     return rec;

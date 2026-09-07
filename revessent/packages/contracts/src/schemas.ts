@@ -351,15 +351,41 @@ export const TeamMemberSchema = z.object({
 });
 export type TeamMember = z.infer<typeof TeamMemberSchema>;
 
+export const BillingStatusSchema = z.enum([
+  "trialing", "active", "past_due", "canceled", "unpaid", "incomplete", "incomplete_expired", "paused", "unknown"
+]);
 export const BillingInfoSchema = z.object({
   plan: PlanSchema,
-  status: z.enum(["trialing", "active", "past_due", "canceled"]),
+  status: BillingStatusSchema,
   pilotEndsAt: z.string().nullable(),
   guaranteeWindowEndsAt: z.string().nullable(),
-  /** Phase 2: Revessent's own billing is not wired (Phase 5). Never pretend otherwise. */
-  billingProviderLive: z.literal(false)
+  /** Phase 7: true once this org's billing row has been synchronised from a
+   *  Stripe Billing webhook (plan_source = stripe_billing). Never pretended. */
+  billingProviderLive: z.boolean(),
+  currentPeriodEnd: z.string().nullable(),
+  cancelAtPeriodEnd: z.boolean(),
+  /** Plan whose capabilities are actually in force (Ember baseline when restricted). */
+  effectivePlan: PlanSchema,
+  restricted: z.boolean(),
+  reasons: z.array(z.string())
 });
 export type BillingInfo = z.infer<typeof BillingInfoSchema>;
+
+/** Phase 7 — what the workspace can do right now (server-resolved; display only). */
+export const CapabilitySchema = z.enum(["smart_retries", "recovery_checkout", "ai_notes", "upgrade_signals", "weekly_digest", "trust_autonomy"]);
+export type Capability = z.infer<typeof CapabilitySchema>;
+export const EntitlementsSchema = z.object({
+  plan: PlanSchema,
+  effectivePlan: PlanSchema,
+  state: z.enum(["entitled", "baseline"]),
+  restricted: z.boolean(),
+  capabilities: z.record(CapabilitySchema, z.boolean()),
+  limits: z.object({ memberCap: z.number().int().nullable(), seats: z.number().int() }),
+  usage: z.object({ seatsUsed: z.number().int(), members: z.number().int() }),
+  overMemberCap: z.boolean(),
+  billing: z.object({ status: BillingStatusSchema, reasons: z.array(z.string()) }).nullable()
+});
+export type Entitlements = z.infer<typeof EntitlementsSchema>;
 
 /** RFC 9457 problem detail (Phase 1 §6.1). */
 export const ProblemSchema = z.object({

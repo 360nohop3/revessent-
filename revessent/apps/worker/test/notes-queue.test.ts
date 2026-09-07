@@ -309,6 +309,56 @@ describe("notes queue — scheduler discovery", () => {
     } finally { await retries.close(); await notes.close(); }
   });
 
+  it("PHASE 7 — queued work after a downgrade: an auto-approved send job is delivered as `held_for_approval` (durable, no email); duplicate deliveries converge; retry.execute is untouched by billing state", async () => {
+    const email = fakeEmailProvider({ kind: "ok" });
+    setEmailProviderForTests(email);
+    const { setPlanForTests } = await import("../../../packages/server/test/helpers");
+    const { createDb: mk } = await import("@revessent/db");
+    // Revessent + trust_level 1 ⇒ autonomy: the prepared note is auto-approved
+    await setPlanForTests(rig.orgId, "revessent", "active");
+    await mk(process.env.SCHEDULER_DATABASE_URL!).update(schema.organizations).set({ trustLevel: 1 }).where(eq(schema.organizations.id, rig.orgId));
+    const q = createNotesQueue(TEST_REDIS_URL);
+    try {
+      const p = await enqueueCommunicationPrepare(q, db(), { orgId: rig.orgId, caseId: rig.caseId, trigger: "retry_failed" });
+      expect((await proc()(fakeJob(COMM_PREPARE_JOB, { jobRunId: p.jobRunId, orgId: rig.orgId, caseId: rig.caseId, trigger: "retry_failed" }))).result).toBe("prepared");
+      const [m] = await messages();
+      expect(m!.generationSource).toBe("ai"); expect(m!.autoApproved).toBe(true); expect(m!.approvalStatus).toBe("approved");
+
+      // the send job is queued, THEN the org is downgraded (as a billing webhook would do)
+      const s = await enqueueCommunicationSend(q, db(), { orgId: rig.orgId, caseId: rig.caseId, messageId: m!.id });
+      await setPlanForTests(rig.orgId, "ember", "trialing");
+      const sdata = { jobRunId: s.jobRunId, orgId: rig.orgId, caseId: rig.caseId, messageId: m!.id };
+      const results = await Promise.all([proc()(fakeJob(COMM_SEND_JOB, sdata)), proc()(fakeJob(COMM_SEND_JOB, sdata)), proc()(fakeJob(COMM_SEND_JOB, sdata, 1))]);
+      expect(results.map((r) => r.result).sort()).toEqual(["held_for_approval", "lease_held_elsewhere", "lease_held_elsewhere"]);
+      expect(email.attempts).toHaveLength(0);
+      const job = await jobRow(s.jobRunId);
+      expect(job!.status).toBe("succeeded"); expect(job!.outcome).toBe("held_for_approval"); // durable blocked outcome, no BullMQ retry
+      const [held] = await messages();
+      expect(held!.approvalStatus).toBe("awaiting_approval"); expect(held!.sendStatus).toBe("pending"); expect(held!.autoApproved).toBe(false);
+      // redelivery after completion is harmless
+      expect((await proc()(fakeJob(COMM_SEND_JOB, sdata, 2))).result).toBe("already_terminal");
+      // discovery no longer proposes it (not approved) — the work waits for a human, it is never discarded
+      const due = await communicationService.findDueSends(db(), rig.orgId, 10, new Date());
+      expect(due.find((d) => d.messageId === m!.id)).toBeUndefined();
+      const [msgRow] = await messages(); expect(msgRow).toBeDefined();
+
+      // retry.execute delivery is a FINANCIAL path: billing state must not change its verdicts
+      const retries = createRetriesQueue(TEST_REDIS_URL);
+      try {
+        const mod = await import("@revessent/worker");
+        const rp = mod.retryExecuteProcessor({ db: db(), systemDb: systemDb(), leaseMs: 300_000, concurrency: 1, redisUrl: TEST_REDIS_URL });
+        const enq = await mod.enqueueRetryExecution(retries, db(), { orgId: rig.orgId, caseId: rig.caseId, runAfter: new Date() });
+        const r = await rp({ data: { jobRunId: enq.jobRunId, orgId: rig.orgId, caseId: rig.caseId }, attemptsMade: 0 } as never);
+        expect(["executed", "blocked", "waiting", "exhausted", "not_due"]).toContain(r.result);
+        const audit = await withOrgTx(appDb(), rig.orgId, (tx) => tx.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.orgId, rig.orgId), eq(schema.auditLogs.action, "entitlement.capability_denied"))));
+        expect(audit).toHaveLength(0); // no entitlement check ever ran on the payment path
+      } finally { await retries.close(); }
+    } finally {
+      await q.close();
+      await mk(process.env.SCHEDULER_DATABASE_URL!).update(schema.organizations).set({ trustLevel: 0 }).where(eq(schema.organizations.id, rig.orgId));
+    }
+  });
+
   it("tenant isolation: another org's cycle never sees this org's communication work", async () => {
     const other = await createTestUser("p6-iso");
     const o2 = await createTestOrg(other, "p6iso");

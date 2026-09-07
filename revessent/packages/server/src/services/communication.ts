@@ -29,6 +29,7 @@ import { createLogger, redact } from "@revessent/observability";
 import type { OrgContext } from "../context.js";
 import { appDb } from "../context.js";
 import { audit } from "./audit.js";
+import { can as entitlementCan } from "./entitlements.js";
 import { createCheckoutLink } from "./checkout.js";
 import { isCustomerSuppressed } from "./suppression.js";
 
@@ -183,7 +184,17 @@ export async function prepareCommunication(
     return { result: "not_allowed", reason: "customer_unsubscribed" };
   }
 
-  const policy = await resolveCommunicationPolicy(db, ctx.org.id, ctx.org.trustLevel, loaded.c.retryPolicyVersion);
+  const basePolicy = await resolveCommunicationPolicy(db, ctx.org.id, ctx.org.trustLevel, loaded.c.retryPolicyVersion);
+  // Phase 7: plan capabilities narrow the policy, never widen it. Re-resolved
+  // from the durable billing row on EVERY prepare (execution time, no cache):
+  //   ai_notes       — Ember is "templates only": AI is not permitted (fallback copy)
+  //   trust_autonomy — Ember is approval-only whatever trust_level says
+  const entitled = await entitlementFlags(db, ctx.org.id);
+  const policy: CommunicationPolicy = {
+    ...basePolicy,
+    aiEnabled: basePolicy.aiEnabled && entitled.aiNotes,
+    trustLevel: entitled.trustAutonomy ? basePolicy.trustLevel : 0
+  };
   const facts = factsFrom(loaded, ctx.org.timezone, now);
   const decision: CommunicationDecision = evaluateCommunication(trigger, facts, policy);
   if (!decision.allowed) {
@@ -223,6 +234,12 @@ export async function prepareCommunication(
     timeoutMs: env.AI_TIMEOUT_MS,
     requestId: dedupeKey
   });
+
+  // Entitlement denial is recorded distinctly from a policy switch-off or a
+  // provider failure (never counted as an AI error; no AI call was made).
+  if (basePolicy.aiEnabled && !entitled.aiNotes && generation.fallbackReason === "ai_disabled") {
+    generation.fallbackReason = "ai_not_entitled";
+  }
 
   // ---- authoritative fact snapshot (what the email will say about money)
   const factSnapshot = {
@@ -285,7 +302,7 @@ export async function prepareCommunication(
       diff: {
         purpose: decision.purpose, trigger, source: generation.source, fallbackReason: generation.fallbackReason,
         violations: generation.violations, approval: approvalStatus, sendAfter: decision.sendAfter.toISOString(),
-        trustLevel: policy.trustLevel
+        trustLevel: policy.trustLevel, entitlements: { aiNotes: entitled.aiNotes, trustAutonomy: entitled.trustAutonomy, effectivePlan: entitled.effectivePlan }
       },
       ip: opts.ip, userAgent: opts.userAgent
     });
@@ -293,6 +310,14 @@ export async function prepareCommunication(
   });
   if (!created.created) return { result: "exists", messageId: created.row.id };
   return { result: "created", messageId: created.row.id, source: generation.source, requiresHumanApproval: decision.requiresHumanApproval };
+}
+
+/** Phase 7: the two communication-relevant capabilities, read from the
+ *  durable billing row through the single resolver (never cached). */
+async function entitlementFlags(db: Db, orgId: string): Promise<{ aiNotes: boolean; trustAutonomy: boolean; effectivePlan: string }> {
+  const ai = await entitlementCan(db, orgId, "ai_notes");
+  const autonomy = await entitlementCan(db, orgId, "trust_autonomy");
+  return { aiNotes: ai.allowed, trustAutonomy: autonomy.allowed, effectivePlan: ai.entitlements.effectivePlan };
 }
 
 /* ---------------------------------------------------------------- deliver */
@@ -307,6 +332,8 @@ export type DeliverResult =
   /** Our email configuration is wrong (missing/rejected credentials): nothing sent,
    *  no attempt budget consumed, message stays pending until an operator fixes config. */
   | { result: "deferred_configuration"; messageId: string; code: string }
+  /** Phase 7: auto-approval no longer entitled — moved back to awaiting_approval (no send). */
+  | { result: "held_for_approval"; messageId: string }
   | { result: "unknown"; messageId: string; code: string };
 
 /** Body contract stored on the row: plain-text paragraphs, placeholders intact. */
@@ -352,6 +379,27 @@ export async function deliverCommunication(
   if (row.sendStatus !== "pending") return { result: "claimed_elsewhere", messageId }; // sending|failed|suppressed|unknown
   if (row.approvalStatus !== "approved") return { result: "not_approved", messageId };
   if (row.sendAfter && row.sendAfter.getTime() > now.getTime()) return { result: "not_due", messageId };
+  // Phase 7 (execution-time re-check): a message that was AUTO-approved under
+  // trust autonomy must not go out once the org is approval-only again
+  // (downgrade / past_due). It is held for a human — durable, reversible,
+  // never discarded. Human-approved messages are unaffected (a person saw them).
+  if (row.autoApproved) {
+    const entitled = await entitlementFlags(db, ctx.org.id);
+    if (!entitled.trustAutonomy) {
+      const [held] = await withOrgTx(db, ctx.org.id, (tx) =>
+        tx.update(schema.recoveryMessages).set({ approvalStatus: "awaiting_approval", autoApproved: false, approvedAt: null, updatedAt: now })
+          .where(and(eq(schema.recoveryMessages.id, messageId), eq(schema.recoveryMessages.orgId, ctx.org.id),
+            eq(schema.recoveryMessages.sendStatus, "pending"), eq(schema.recoveryMessages.approvalStatus, "approved"))).returning());
+      if (held) {
+        await audit(db, {
+          orgId: ctx.org.id, actorId: ctx.userId, actorKind: "system", action: "communication.held_for_approval",
+          targetType: "recovery_message", targetId: messageId,
+          diff: { reason: "trust_autonomy_not_entitled", effectivePlan: entitled.effectivePlan }, ip: opts.ip, userAgent: opts.userAgent
+        });
+      }
+      return { result: "held_for_approval", messageId };
+    }
+  }
 
   // ---- atomic claim: exactly one deliverer proceeds
   const [claimed] = await withOrgTx(db, ctx.org.id, (tx) =>

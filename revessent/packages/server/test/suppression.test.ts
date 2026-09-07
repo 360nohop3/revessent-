@@ -56,6 +56,8 @@ describe("communication suppression (authoritative opt-out)", () => {
   beforeAll(async () => {
     owner = await createTestUser("sup-owner");
     const o = await createTestOrg(owner, "sup"); slug = o.slug; orgId = o.orgId;
+    // deterministic timing: quiet hours disabled so send-time verdicts never depend on the wall-clock hour
+    await withOrgTx(appDb(), orgId, (tx) => tx.insert(schema.retryPolicies).values({ orgId, version: 1, rules: { quietHoursStart: 0, quietHoursEnd: 0 }, createdBy: owner.id }));
   });
   afterEach(() => { resetEmailProvider(); resetAiProvider(); });
 

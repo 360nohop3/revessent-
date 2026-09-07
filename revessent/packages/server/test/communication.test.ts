@@ -13,12 +13,12 @@ import { setEmailProviderForTests, resetEmailProvider } from "@revessent/integra
 import { fakeEmailProvider } from "@revessent/integrations/email-fixtures";
 import { setAiProviderForTests, resetAiProvider } from "@revessent/ai";
 import { fakeAiProvider } from "@revessent/ai/fakes";
-import { createTestOrg, createTestUser, ctxFor, suffix, type TestUser } from "./helpers";
+import { createTestOrg, createTestUser, ctxFor, setPlanForTests, suffix, type TestUser } from "./helpers";
 
 
 interface Fixture { caseId: string; customerId: string; paymentId: string }
 
-async function seedCase(orgId: string, over: { status?: string; email?: string | null; autoRetries?: number; amountCents?: number; declineCategory?: string } = {}): Promise<Fixture> {
+async function seedCase(orgId: string, over: { status?: string; email?: string | null; autoRetries?: number; amountCents?: number; declineCategory?: string; policyVersion?: number } = {}): Promise<Fixture> {
   return withOrgTx(appDb(), orgId, async (tx) => {
     const [cust] = await tx.insert(schema.customers).values({
       orgId, stripeCustomerId: `cus_${suffix()}`, name: "Zoe Example <script>", email: over.email === undefined ? `zoe-${suffix()}@example.test` : over.email, currency: "USD"
@@ -29,7 +29,8 @@ async function seedCase(orgId: string, over: { status?: string; email?: string |
     const [c] = await tx.insert(schema.recoveryCases).values({
       orgId, customerId: cust!.id, paymentId: payment!.id, status: over.status ?? "retrying",
       declineCode: "insufficient_funds", declineCategory: over.declineCategory ?? "insufficient_funds",
-      amountCents: over.amountCents ?? 4900, currency: "USD", firstFailedAt: new Date()
+      amountCents: over.amountCents ?? 4900, currency: "USD", firstFailedAt: new Date(),
+      retryPolicyVersion: over.policyVersion ?? 1
     }).returning();
     for (let i = 1; i <= (over.autoRetries ?? 1); i++) {
       await tx.insert(schema.recoveryAttempts).values({
@@ -50,11 +51,17 @@ async function setTrust(orgId: string, level: number) {
   await systemDb.update(schema.organizations).set({ trustLevel: level }).where(eq(schema.organizations.id, orgId));
 }
 
+const NO_QUIET = { quietHoursStart: 0, quietHoursEnd: 0 } as const;
+
 describe("communication service (Phase 6)", () => {
   let owner: TestUser; let slug = ""; let orgId = "";
   beforeAll(async () => {
     owner = await createTestUser("comm-owner");
     const o = await createTestOrg(owner, "comm"); slug = o.slug; orgId = o.orgId;
+    await setPlanForTests(orgId, "revessent", "active"); // Phase 7: AI notes + trust autonomy are paid capabilities
+    // Deterministic timing: quiet hours disabled (start === end) so these tests
+    // do not depend on the wall-clock hour the suite happens to run at.
+    await withOrgTx(appDb(), orgId, (tx) => tx.insert(schema.retryPolicies).values({ orgId, version: 1, rules: NO_QUIET, createdBy: owner.id }));
   });
   afterEach(() => { resetEmailProvider(); resetAiProvider(); });
 
@@ -163,10 +170,11 @@ describe("communication service (Phase 6)", () => {
 
   it("deliver: trust_level ≥ 1 auto-approves, but quiet hours/cooldown still gate (not_due)", async () => {
     await setTrust(orgId, 1);
+    await withOrgTx(appDb(), orgId, (tx) => tx.insert(schema.retryPolicies).values({ orgId, version: 10, rules: { quietHoursStart: 21, quietHoursEnd: 8 }, createdBy: owner.id }));
     try {
       setAiProviderForTests(null);
       const ctx = await ctxFor(owner, slug, "operate");
-      const f = await seedCase(orgId);
+      const f = await seedCase(orgId, { policyVersion: 10 }); // pinned to the quiet-hours policy version
       const p = await communicationService.prepareCommunication(ctx, f.caseId, "retry_failed", { now: new Date("2026-09-06T02:00:00Z") }); // 02:00 UTC = quiet
       const id = (p as { messageId: string }).messageId;
       const row = await messageRow(orgId, id);
@@ -174,7 +182,10 @@ describe("communication service (Phase 6)", () => {
       expect(row.autoApproved).toBe(true);
       expect(row.sendAfter!.getTime()).toBe(new Date("2026-09-06T08:00:00Z").getTime());
       expect((await communicationService.deliverCommunication(ctx, id, { now: new Date("2026-09-06T03:00:00Z") })).result).toBe("not_due");
-    } finally { await setTrust(orgId, 0); }
+    } finally {
+      await setTrust(orgId, 0);
+      await withOrgTx(appDb(), orgId, (tx) => tx.insert(schema.retryPolicies).values({ orgId, version: 11, rules: NO_QUIET, createdBy: owner.id }));
+    }
   });
 
   async function approvedMessage(ctx: Awaited<ReturnType<typeof ctxFor>>, f: Fixture): Promise<string> {
@@ -298,11 +309,11 @@ describe("communication service (Phase 6)", () => {
     // kill switch
     const f4 = await seedCase(orgId); const id4 = await approvedMessage(ctx, f4);
     // (a NEW policy version — policies are append-only; the kill switch is read from the latest version)
-    await withOrgTx(appDb(), orgId, (tx) => tx.insert(schema.retryPolicies).values({ orgId, version: 1, rules: { communication: { sendsPaused: true } }, createdBy: owner.id }));
+    await withOrgTx(appDb(), orgId, (tx) => tx.insert(schema.retryPolicies).values({ orgId, version: 20, rules: { ...NO_QUIET, communication: { sendsPaused: true } }, createdBy: owner.id }));
     try {
       expect(await communicationService.deliverCommunication(ctx, id4)).toMatchObject({ result: "suppressed", reason: "sends_paused" });
     } finally {
-      await withOrgTx(appDb(), orgId, (tx) => tx.insert(schema.retryPolicies).values({ orgId, version: 2, rules: {}, createdBy: owner.id }));
+      await withOrgTx(appDb(), orgId, (tx) => tx.insert(schema.retryPolicies).values({ orgId, version: 21, rules: NO_QUIET, createdBy: owner.id }));
     }
     expect(email.attempts).toHaveLength(0);
   });

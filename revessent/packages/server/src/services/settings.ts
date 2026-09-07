@@ -13,6 +13,8 @@ import { sealSecret, openSecret, keyDisplayLast4 } from "../crypto/secret-box.js
 import { getStripeGateway, isProviderError } from "@revessent/integrations";
 import { ProblemError } from "../http/problems.js";
 import { audit } from "./audit.js";
+import { reserveSeat } from "./entitlements.js";
+import { resolveEntitlements } from "@revessent/domain";
 import { WEBHOOK_EVENT_TYPES, webhookEndpointUrl, webhookStatus, type WebhookLifecycle } from "./webhooks.js";
 import type { OrgContext } from "../context.js";
 
@@ -546,7 +548,9 @@ export async function invite(
   const { createHash, randomBytes } = await import("node:crypto");
   const token = randomBytes(24).toString("base64url");
   const tokenHash = createHash("sha256").update(token).digest("hex");
-  await withOrgTx(ctx.db, ctx.org.id, async (tx) => {
+  // Phase 7: seats are a plan LIMIT (§1.4) — consumed atomically inside the
+  // org transaction under the per-org seat lock (no check-then-insert race).
+  const reservation = await reserveSeat(ctx.db, ctx.org.id, async (tx) => {
     await tx.insert(schema.invitations).values({
       orgId: ctx.org.id, email: input.email, role: input.role,
       tokenHash, invitedBy: ctx.userId,
@@ -559,6 +563,14 @@ export async function invite(
       ip: meta.ip, userAgent: meta.userAgent
     });
   });
+  if (!reservation.allowed) {
+    await audit(ctx.db, {
+      orgId: ctx.org.id, actorId: ctx.userId, action: "entitlement.limit_reached",
+      targetType: "organization", targetId: ctx.org.id,
+      diff: { limit: "seats", used: reservation.used, max: reservation.limit }, ip: meta.ip, userAgent: meta.userAgent
+    });
+    throw new ProblemError("entitlement-required", `Seat limit reached (${reservation.used}/${reservation.limit}). Upgrade your plan to invite more teammates.`);
+  }
   return { invited: true, emailSent: false };
 }
 
@@ -567,11 +579,18 @@ export async function invite(
 export async function billing(ctx: OrgContext): Promise<BillingInfo> {
   const [sub] = await withOrgTx(ctx.db, ctx.org.id, (tx) =>
     tx.select().from(schema.orgSubscriptions).where(eq(schema.orgSubscriptions.orgId, ctx.org.id)));
+  // Phase 7: the resolver is the single interpretation of the durable row.
+  const resolved = resolveEntitlements(sub ? { plan: sub.plan, status: sub.status } : { plan: null, status: null, missing: true });
   return {
-    plan: (sub?.plan ?? ctx.org.plan) as BillingInfo["plan"],
-    status: (sub?.status ?? "trialing") as BillingInfo["status"],
+    plan: resolved.plan,
+    status: resolved.status,
     pilotEndsAt: ctx.org.pilotEndsAt?.toISOString() ?? null,
     guaranteeWindowEndsAt: sub?.guaranteeEndsAt?.toISOString() ?? null,
-    billingProviderLive: false // Revessent's own billing = Phase 5. Never pretended otherwise.
+    billingProviderLive: sub?.planSource === "stripe_billing", // true only after a verified Stripe Billing webhook
+    currentPeriodEnd: sub?.currentPeriodEnd?.toISOString() ?? null,
+    cancelAtPeriodEnd: sub?.cancelAtPeriodEnd ?? false,
+    effectivePlan: resolved.effectivePlan,
+    restricted: resolved.restricted,
+    reasons: resolved.reasons
   };
 }

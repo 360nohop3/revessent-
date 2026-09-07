@@ -41,7 +41,7 @@ export interface NotesWorkerDeps {
 export type NotesProcessorResult = { result: string };
 
 /** Delivery outcomes recorded on job_runs.outcome for notes jobs. */
-export type NotesOutcome = JobOutcome | "prepared" | "exists" | "not_allowed" | "sent" | "already_sent" | "suppressed" | "not_approved" | "failed_permanent" | "unknown" | "claimed_elsewhere" | "no_such_message" | "deferred_configuration";
+export type NotesOutcome = JobOutcome | "prepared" | "exists" | "not_allowed" | "sent" | "already_sent" | "suppressed" | "not_approved" | "failed_permanent" | "unknown" | "claimed_elsewhere" | "no_such_message" | "deferred_configuration" | "held_for_approval";
 
 export function notesProcessor(deps: NotesWorkerDeps) {
   return async (job: Job<NotesPayload>): Promise<NotesProcessorResult> => {

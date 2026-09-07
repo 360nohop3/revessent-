@@ -22,7 +22,9 @@ import { AiProviderError, type AiProvider, type AiCompletionResult } from "./pro
 
 export type FallbackReason =
   | "ai_disabled" | "ai_no_provider" | "ai_timeout" | "ai_unavailable" | "ai_rate_limited"
-  | "ai_rejected" | "ai_malformed_response" | "ai_invalid_output" | "ai_prohibited_content" | "ai_error";
+  | "ai_rejected" | "ai_malformed_response" | "ai_invalid_output" | "ai_prohibited_content" | "ai_error"
+  /** Phase 7: the plan does not include AI notes (templates only) — not a provider failure. */
+  | "ai_not_entitled";
 
 export interface GenerationResult {
   copy: AiCopy;

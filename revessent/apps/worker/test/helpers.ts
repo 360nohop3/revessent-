@@ -88,7 +88,9 @@ export function baseWorld(): FixtureWorld {
 
 function rules(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    maxAutoRetries: 2, quietHoursStart: 21, quietHoursEnd: 8, minGapHours: 24,
+    // quiet hours disabled (start === end): retry eligibility never used them and
+    // Phase 6 send timing must not depend on the wall-clock hour of the test run
+    maxAutoRetries: 2, quietHoursStart: 0, quietHoursEnd: 0, minGapHours: 24,
     noteAfterFailedRetries: 1, checkoutAfterNote: true,
     autoRetry: {
       perCategory: {

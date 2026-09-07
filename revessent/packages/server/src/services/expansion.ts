@@ -9,6 +9,7 @@ import { transition, type ApprovalStatus, type TransitionResult } from "@revesse
 import type { Opportunity, DraftAction, Paged, MessageDraft } from "@revessent/contracts";
 import { ProblemError } from "../http/problems.js";
 import { audit } from "./audit.js";
+import { requireCapability } from "./entitlements.js";
 import type { OrgContext } from "../context.js";
 
 const DB_TO_UI: Record<string, Opportunity["status"]> = {
@@ -77,6 +78,12 @@ export async function applyOpportunityDraftAction(
   ctx: OrgContext, id: string, action: DraftAction,
   meta: { ip?: string | null; userAgent?: string | null }
 ): Promise<MessageDraft> {
+  // Phase 7: upgrade signals are a plan capability (§1.4). Reads, edits and
+  // cancels of existing drafts stay available; NEW forward work (submitting
+  // for approval / approving) requires the capability. Non-financial.
+  if (action.type === "submit" || action.type === "approve") {
+    await requireCapability(ctx, "upgrade_signals", { ...meta, target: { type: "expansion_opportunity", id } });
+  }
   return withOrgTx(ctx.db, ctx.org.id, async (tx) => {
     const [opp] = await tx.select().from(schema.expansionOpportunities)
       .where(and(eq(schema.expansionOpportunities.id, id), eq(schema.expansionOpportunities.orgId, ctx.org.id)));
@@ -160,6 +167,7 @@ export async function pushSignal(
   ctx: OrgContext, input: { customerId: string; kind: string; payload: Record<string, unknown> },
   meta: { ip?: string | null; userAgent?: string | null }
 ): Promise<{ id: string }> {
+  await requireCapability(ctx, "upgrade_signals", { ...meta, target: { type: "customer", id: input.customerId } });
   return withOrgTx(ctx.db, ctx.org.id, async (tx) => {
     const [row] = await tx.insert(schema.expansionSignals).values({
       orgId: ctx.org.id, customerId: input.customerId, kind: input.kind, payload: input.payload

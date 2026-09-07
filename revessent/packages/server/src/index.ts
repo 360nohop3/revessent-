@@ -17,3 +17,5 @@ export * as executionService from "./services/execute.js";
 export * as retryService from "./services/retry.js";
 export * as communicationService from "./services/communication.js";
 export * as suppressionService from "./services/suppression.js";
+export * as entitlementsService from "./services/entitlements.js";
+export * as billingService from "./services/billing.js";

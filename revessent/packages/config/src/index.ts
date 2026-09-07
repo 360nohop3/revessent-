@@ -205,3 +205,34 @@ export function communicationEnv(): CommunicationEnv {
 export function resetCommunicationEnvForTests(): void {
   cachedCommunicationEnv = null;
 }
+
+/* ---------------- Phase 7: Revessent's own billing (Stripe Billing) ---------------- */
+
+/**
+ * Platform billing webhook configuration. OPTIONAL and fail-safe: without a
+ * signing secret the endpoint verifies nothing and applies nothing (safe 400).
+ * The secret is a credential: never logged, never echoed.
+ */
+export const BillingEnvSchema = z.object({
+  BILLING_WEBHOOK_SECRET: z.string().min(10).optional(),
+  /** Which Stripe mode this deployment's platform endpoint accepts (default: test). */
+  BILLING_LIVEMODE: z.enum(["true", "false"]).default("false").transform((v) => v === "true")
+});
+
+export type BillingEnv = z.infer<typeof BillingEnvSchema>;
+
+let cachedBillingEnv: BillingEnv | null = null;
+
+export function billingEnv(): BillingEnv {
+  if (cachedBillingEnv) return cachedBillingEnv;
+  const parsed = BillingEnvSchema.safeParse({
+    BILLING_WEBHOOK_SECRET: process.env.BILLING_WEBHOOK_SECRET || undefined,
+    BILLING_LIVEMODE: process.env.BILLING_LIVEMODE || undefined
+  });
+  if (!parsed.success) throw new ConfigError("Billing env invalid: BILLING_WEBHOOK_SECRET / BILLING_LIVEMODE. Secrets are never logged.");
+  cachedBillingEnv = parsed.data;
+  return cachedBillingEnv;
+}
+
+/** Tests only: re-read the billing environment. */
+export function resetBillingEnvForTests(): void { cachedBillingEnv = null; }

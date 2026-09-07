@@ -64,3 +64,8 @@ export function useVoice(slug: string) {
 export function useBilling(slug: string) {
   return useQuery({ queryKey: qk.billing(slug), queryFn: () => api.settings.billing(slug) });
 }
+
+/** Phase 7: server-resolved entitlements (display only — the server enforces). */
+export function useEntitlements(slug: string) {
+  return useQuery({ queryKey: qk.entitlements(slug), queryFn: () => api.settings.entitlements(slug) });
+}

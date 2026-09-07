@@ -1,10 +1,10 @@
 import { createLogger } from "@revessent/observability";
-import type { ApprovalStatus } from "@revessent/domain";
+import { resolveEntitlements, type ApprovalStatus } from "@revessent/domain";
 import type {
   ApiClient, ApiError, CaseFilters, CustomerFilters, DemoProviderActionInput, DraftAction, Paged
 } from "../api";
 import type {
-  BillingInfo, Customer, Opportunity, Org, Overview,
+  BillingInfo, Customer, Entitlements, Opportunity, Org, Overview,
   Problem, RecoveryCase, RecoveryTokenInfo, RetryPolicy, Role,
   StripeConnection, TeamMember, TimelineEntry, UpgradeTokenInfo, VoiceProfile
 } from "../schemas";
@@ -300,7 +300,19 @@ class MockApiClient implements MockApi {
       }, `settings.invite(${slug})`),
 
     billing: (slug: string): Promise<BillingInfo> =>
-      this.guard(() => this.requireOrg(slug).billing, `settings.billing(${slug})`)
+      this.guard(() => this.requireOrg(slug).billing, `settings.billing(${slug})`),
+
+    entitlements: (slug: string): Promise<Entitlements> =>
+      this.guard(() => {
+        const rec = this.requireOrg(slug);
+        const resolved = resolveEntitlements({ plan: rec.billing.plan, status: rec.billing.status });
+        return {
+          plan: resolved.plan, effectivePlan: resolved.effectivePlan, state: resolved.state, restricted: resolved.restricted,
+          capabilities: resolved.capabilities, limits: resolved.limits,
+          usage: { seatsUsed: rec.team.length, members: rec.customers.length }, overMemberCap: false,
+          billing: { status: resolved.status, reasons: resolved.reasons }
+        };
+      }, `settings.entitlements(${slug})`)
   };
 
   subscriber = {

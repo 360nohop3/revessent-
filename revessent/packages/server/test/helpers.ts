@@ -2,7 +2,7 @@
 import { randomBytes } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { appDb, orgsService, requireOrgRole, auth, type OrgContext, type SessionUser } from "@revessent/server";
-import { withIdentityTx } from "@revessent/db";
+import { withIdentityTx, withOrgTx } from "@revessent/db";
 import * as schema from "@revessent/db";
 
 export function suffix(): string {
@@ -58,4 +58,17 @@ export async function createTestOrg(
       tx.insert(schema.memberships).values({ orgId: org.id, userId: extra.user.id, role: extra.role }));
   }
   return { slug: org.slug, orgId: org.id };
+}
+
+/**
+ * Phase 7: sets the org's AUTHORITATIVE billing row (org_subscriptions) the
+ * way a verified Stripe Billing webhook would. Tests that exercise paid
+ * capabilities (AI notes, trust autonomy, upgrade signals, >1 seat) call this;
+ * the default record is Ember/trialing (templates only, approval-only, 1 seat).
+ */
+export async function setPlanForTests(orgId: string, plan: "ember" | "revessent" | "studio", status = "active"): Promise<void> {
+  await withOrgTx(appDb(), orgId, async (tx) => {
+    await tx.update(schema.orgSubscriptions).set({ plan, status, updatedAt: new Date() }).where(eq(schema.orgSubscriptions.orgId, orgId));
+    await tx.update(schema.organizations).set({ plan, updatedAt: new Date() }).where(eq(schema.organizations.id, orgId));
+  });
 }
