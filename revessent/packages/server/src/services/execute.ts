@@ -76,7 +76,7 @@ type ProviderInvoiceTruth = {
  * when the invoice is verified payable. Same rules in both phases — the
  * post-lock check is an additional race-safety layer, never a replacement.
  */
-function providerInvoiceFault(
+export function providerInvoiceFault(
   p: { customerId: string | null; currency: string | null; amountDue: number | null; amountRemaining: number | null; status: string | null },
   local: { customerStripeId: string; currency: string; amountCents: number }
 ): { reason: string; type: "validation" | "conflict"; detail: string } | null {

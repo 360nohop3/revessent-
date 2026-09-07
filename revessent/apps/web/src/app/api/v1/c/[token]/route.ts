@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { appDb, checkoutService } from "@revessent/server";
+import { appDb, checkoutService, clientIp, rateLimit, ProblemError } from "@revessent/server";
 import { handle, mutation } from "@/lib/api-route";
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{10,120}$/;
@@ -16,10 +16,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   });
 }
 
-/** Public confirm: provider-confirmed completion = next phase. Honest 501. */
+/**
+ * Public start (Phase 8 Hosted Recovery Checkout): verifies the link and the
+ * CURRENT provider invoice server-side, then returns Stripe's own hosted page
+ * for that exact invoice. Nothing is charged here and no body field is
+ * trusted — the token is the only input. Completion is provider truth only
+ * (invoice.paid → reconciliation), never this endpoint or a redirect.
+ */
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
   return mutation(req, async () => {
-    await params; // token validated by shape; confirmation is Stripe's, later phase
-    checkoutService.confirmCheckout();
-  }, (b) => z.object({}).parse(b ?? {}));
+    const { token } = await params;
+    if (!TOKEN_RE.test(token)) return { state: "unknown" as const };
+    // Public surface: bound provider lookups per client (existing in-memory limiter).
+    const rl = rateLimit(`checkout-start:${clientIp(req)}`, 20, 60_000);
+    if (!rl.ok) throw new ProblemError("rate-limited", "Too many attempts. Please wait a moment and try again.", { "Retry-After": String(rl.retryAfterSec) });
+    return checkoutService.startCheckout(appDb(), token, {
+      ip: clientIp(req), userAgent: req.headers.get("user-agent")
+    });
+  }, (b) => z.object({}).strict().parse(b ?? {}));
 }

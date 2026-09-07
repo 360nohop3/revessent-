@@ -407,6 +407,15 @@ export const RecoveryTokenSchema = z.object({
 });
 export type RecoveryTokenInfo = z.infer<typeof RecoveryTokenSchema>;
 
+/** Phase 8 Hosted Recovery Checkout — result of POST /c/{token}. `ready`
+ *  carries ONLY the provider's own hosted page URL; every other state is an
+ *  honest refusal (nothing was charged, no URL). */
+export const RecoveryCheckoutStartSchema = z.object({
+  state: z.enum(["ready", "already_paid", "expired", "unavailable", "provider_unavailable", "provider_error", "unknown"]),
+  url: z.string().url().optional()
+});
+export type RecoveryCheckoutStart = z.infer<typeof RecoveryCheckoutStartSchema>;
+
 export const UpgradeTokenSchema = z.object({
   state: z.enum(["valid", "expired", "used", "unknown"]),
   orgName: z.string().nullable(),

@@ -207,6 +207,7 @@ export const stripeGateway: StripeGateway = {
     invoiceId: string; customerId: string | null;
     amountDue: number | null; amountRemaining: number | null;
     currency: string | null; status: string | null; attempted: boolean;
+    hostedInvoiceUrl: string | null;
   }> {
     try {
       const s = client(key);
@@ -214,6 +215,7 @@ export const stripeGateway: StripeGateway = {
       const invLike = inv as unknown as StripeInvoiceLike & {
         amount_remaining?: number | null;
       };
+      const hosted = typeof invLike.hosted_invoice_url === "string" ? invLike.hosted_invoice_url : null;
       // Explicit field mapping — a missing field stays null ("not
       // established"); nothing is defaulted, converted or normalized away
       // except the locale case of the currency code (compared against the
@@ -226,7 +228,8 @@ export const stripeGateway: StripeGateway = {
         amountRemaining: typeof invLike.amount_remaining === "number" ? invLike.amount_remaining : null,
         currency: invLike.currency ? String(invLike.currency).toUpperCase() : null,
         status: invLike.status ?? null,
-        attempted: invLike.attempted === true
+        attempted: invLike.attempted === true,
+        hostedInvoiceUrl: hosted
       };
     } catch (err) {
       throw classifyProviderError(err);

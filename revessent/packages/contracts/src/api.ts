@@ -1,6 +1,6 @@
 import type {
   BillingInfo, Customer, Entitlements, MessageDraft, Opportunity, Org,
-  Overview, Problem, RecoveryCase, RecoveryTokenInfo, RetryPolicy,
+  Overview, Problem, RecoveryCase, RecoveryTokenInfo, RecoveryCheckoutStart, RetryPolicy,
   StripeConnection, TeamMember, TimelineEntry, UpgradeTokenInfo, VoiceProfile, Role
 } from "./schemas";
 import type { RecoveryExecution } from "./schemas";
@@ -69,6 +69,8 @@ export interface ApiClient {
 
   subscriber: {
     recoveryToken(token: string): Promise<RecoveryTokenInfo>;
+    /** Starts the Stripe-hosted checkout for the link's invoice (Phase 8). */
+    startRecoveryCheckout(token: string): Promise<RecoveryCheckoutStart>;
     upgradeToken(token: string): Promise<UpgradeTokenInfo>;
     unsubscribe(token: string): Promise<{ state: "done" | "unknown" }>;
   };

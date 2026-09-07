@@ -145,6 +145,10 @@ export interface StripeGateway {
     /** Verbatim provider invoice status; null = missing. */
     status: string | null;
     attempted: boolean;
+    /** Phase 8 Hosted Recovery Checkout: the provider's OWN hosted payment
+     *  page for this exact invoice (hosted_invoice_url). Read from the same
+     *  retrieve — never constructed locally; null = not offered by provider. */
+    hostedInvoiceUrl?: string | null;
   }>;
   createWebhookEndpoint(key: string, opts: { url: string; eventTypes: string[] }): Promise<{ id: string; secret: string }>;
   /** Idempotent: deleting an endpoint that is already gone succeeds (the

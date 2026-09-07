@@ -406,6 +406,9 @@ export const recoveryCheckouts = pgTable("recovery_checkouts", {
   status: text("status").notNull().default("open"), // open|completed|expired|disabled
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   completedAt: timestamp("completed_at", { withTimezone: true }),
+  /** Phase 8: member opened the Stripe-hosted payment surface (never completion). */
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  startCount: integer("start_count").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 });
 

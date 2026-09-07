@@ -5,7 +5,7 @@ import type {
 } from "../api";
 import type {
   BillingInfo, Customer, Entitlements, Opportunity, Org, Overview,
-  Problem, RecoveryCase, RecoveryTokenInfo, RetryPolicy, Role,
+  Problem, RecoveryCase, RecoveryTokenInfo, RecoveryCheckoutStart, RetryPolicy, Role,
   StripeConnection, TeamMember, TimelineEntry, UpgradeTokenInfo, VoiceProfile
 } from "../schemas";
 import type { RecoveryExecution } from "../schemas";
@@ -318,6 +318,14 @@ class MockApiClient implements MockApi {
   subscriber = {
     recoveryToken: (token: string): Promise<RecoveryTokenInfo> =>
       this.guard(() => recoveryTokenInfo(token), `subscriber.recoveryToken(${token})`),
+
+    startRecoveryCheckout: (token: string): Promise<RecoveryCheckoutStart> =>
+      this.guard(() => {
+        // Demo: no provider, no hosted page — an honest "unavailable"; never a
+        // fake success and never a look-alike payment surface.
+        const info = recoveryTokenInfo(token);
+        return { state: info.state === "valid" ? "provider_unavailable" : info.state === "used" ? "already_paid" : info.state === "expired" ? "expired" : "unknown" };
+      }, `subscriber.startRecoveryCheckout(${token})`),
 
     upgradeToken: (token: string): Promise<UpgradeTokenInfo> =>
       this.guard(() => upgradeTokenInfo(token), `subscriber.upgradeToken(${token})`),

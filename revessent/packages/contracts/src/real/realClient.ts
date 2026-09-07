@@ -9,7 +9,7 @@ import { ApiError, type ApiClient, type CaseFilters, type CustomerFilters, type 
 import {
   OrgSchema, OverviewSchema, RecoveryCaseSchema, TimelineEntrySchema, OpportunitySchema,
   CustomerSchema, StripeConnectionSchema, RetryPolicySchema, VoiceProfileSchema, SyncResponseSchema,
-  TeamMemberSchema, BillingInfoSchema, EntitlementsSchema, RecoveryTokenSchema, UpgradeTokenSchema,
+  TeamMemberSchema, BillingInfoSchema, EntitlementsSchema, RecoveryTokenSchema, RecoveryCheckoutStartSchema, UpgradeTokenSchema,
   MessageDraftSchema, RecoveryExecutionSchema } from "../schemas";
 
 async function parseProblem(res: Response): Promise<never> {
@@ -106,6 +106,7 @@ export function createRealApi(): ApiClient {
 
     subscriber: {
       recoveryToken: (token) => getJson(`/api/v1/c/${encodeURIComponent(token)}`, RecoveryTokenSchema),
+      startRecoveryCheckout: (token) => sendJson(`/api/v1/c/${encodeURIComponent(token)}`, "POST", {}, RecoveryCheckoutStartSchema),
       upgradeToken: (token) => getJson(`/api/v1/upgrade/${encodeURIComponent(token)}`, UpgradeTokenSchema),
       unsubscribe: (token) => sendJson(`/api/v1/unsubscribe/${encodeURIComponent(token)}`, "POST", undefined, Unsubscribe)
     }

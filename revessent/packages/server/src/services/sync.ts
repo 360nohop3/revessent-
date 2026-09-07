@@ -358,14 +358,22 @@ export async function applyProviderInvoice(db: Db, orgId: string, refs: {
     failedAt, paidAt: inv.paidAtIso ? new Date(inv.paidAtIso) : null,
     raw: null, updatedAt: new Date()
   };
-  await db.insert(schema.payments).values(values)
+  const [written] = await db.insert(schema.payments).values(values)
     .onConflictDoUpdate({
       target: [schema.payments.orgId, schema.payments.stripeInvoiceId],
       // payments_org_invoice_uq is partial — the target must repeat its
       // predicate or Postgres rejects the inference (42P10)
       targetWhere: sql`stripe_invoice_id is not null`,
       set: { ...values, createdAt: undefined }
-    });
+    }).returning({ id: schema.payments.id });
+  // Phase 8 Hosted Recovery Checkout: provider-confirmed `paid` is the ONLY
+  // completion signal for a started checkout (webhook, sync and
+  // reconciliation all pass through here). Same transaction as the truth
+  // write — completion and paid state commit together or not at all.
+  if (status === "paid" && written) {
+    const { applyCheckoutCompletion } = await import("./checkout.js");
+    await applyCheckoutCompletion(db, orgId, written.id);
+  }
   return "applied";
 }
 

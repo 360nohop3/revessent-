@@ -176,6 +176,13 @@
       "when": 1788900000000,
       "tag": "0024_auth_rate_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1788950000000,
+      "tag": "0025_checkout_start",
+      "breakpoints": true
     }
   ]
 }

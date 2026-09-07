@@ -211,6 +211,7 @@ export function fixtureGateway(world: FixtureWorld): StripeGateway {
       invoiceId: string; customerId: string | null;
       amountDue: number | null; amountRemaining: number | null;
       currency: string | null; status: string | null; attempted: boolean;
+      hostedInvoiceUrl: string | null;
     }> {
       calls.invoice_lookup = (calls.invoice_lookup ?? 0) + 1;
       maybeFail("invoice_lookup");
@@ -224,7 +225,8 @@ export function fixtureGateway(world: FixtureWorld): StripeGateway {
         amountRemaining: typeof inv.amountMinor === "number" ? inv.amountMinor : null,
         currency: inv.currency ? String(inv.currency).toUpperCase() : null,
         status: inv.status ?? null,
-        attempted: inv.attempted === true
+        attempted: inv.attempted === true,
+        hostedInvoiceUrl: inv.hostedInvoiceUrl ?? null
       };
     },
 
@@ -321,7 +323,7 @@ export function fixtureInvoice(i: number, customerId: string, overrides?: Partia
     status: i % 3 === 0 ? "paid" : i % 3 === 1 ? "open" : "uncollectible",
     attempted: true,
     attemptCount: 1 + (i % 2),
-    hostedInvoiceUrl: `https://invoice.example.test/${i}`,
+    hostedInvoiceUrl: `https://invoice.stripe.com/i/fixture_${i}`,
     periodStartIso: new Date((1_700_000_000 + i * 3600) * 1000).toISOString(),
     periodEndIso: new Date((1_700_000_000 + i * 3600 + 30 * 86400) * 1000).toISOString(),
     paidAtIso: i % 3 === 0 ? new Date((1_700_000_100 + i * 3600) * 1000).toISOString() : null,
