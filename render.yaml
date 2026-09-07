@@ -1,0 +1,126 @@
+# REVESSENT — $0 staging Blueprint (Render Free). NOT a production topology.
+#
+# Scope: early-validation staging only. Postgres = Supabase Free (external),
+# Redis = Upstash Free (external). No custom domain. No secrets in this file:
+# every credential is `sync: false` (entered in the Render Dashboard only).
+#
+# Free-tier facts that shape this file (render.com/docs/free, 2026-09):
+#   * Free instances exist ONLY for Web Services / Postgres / Key Value / Static
+#     Sites. A Render "Background Worker" (type: worker) has NO free plan, so the
+#     REVESSENT worker is declared below as a SECOND free web service that exposes
+#     its existing /healthz endpoint on $PORT (apps/worker/src/health.ts). The
+#     worker process itself is unchanged — it is NOT merged into the web app.
+#   * Free web services spin down after 15 min without inbound traffic and share
+#     750 instance-hours / workspace / month. Two always-on free services exceed
+#     that budget, and a spun-down worker does not poll. Treat the worker service
+#     as "run while smoke-testing, suspend afterwards"; it is not continuous.
+#   * Free instances have no shell, no pre-deploy command and no one-off jobs, so
+#     database migrations are run from an operator machine:
+#       MIGRATE_DATABASE_URL=<supabase owner, session pooler :5432> \
+#         pnpm --filter @revessent/db migrate
+#
+# Commands below are the repository's own package scripts (root package.json,
+# apps/web/package.json, apps/worker/package.json). Nothing here is invented.
+
+services:
+  - type: web
+    name: revessent-web-staging
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: revessent
+    branch: main
+    buildCommand: corepack enable && corepack pnpm install --frozen-lockfile && corepack pnpm turbo run build --filter=@revessent/web
+    startCommand: corepack pnpm --filter @revessent/web start
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: 24.14.1
+      - key: NODE_ENV
+        value: production
+      # apps/web `start` script binds -p 3000; keep Render's PORT in agreement.
+      - key: PORT
+        value: "3000"
+      - key: NEXT_PUBLIC_DEMO_MODE
+        value: "off"
+      - key: LOG_LEVEL
+        value: info
+      # --- set in Dashboard (no values in git) ---
+      - key: DATABASE_URL          # Supabase, role revessent_app, session pooler :5432, ?sslmode=require
+        sync: false
+      - key: APP_DATABASE_URL      # same as DATABASE_URL for staging
+        sync: false
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      - key: KEY_ENCRYPTION_KEY    # base64 32-byte key; generate with the repo's documented command
+        sync: false
+      - key: BETTER_AUTH_URL       # the ACTUAL https://<service>.onrender.com URL Render assigns — set after first deploy
+        sync: false
+      - key: APP_PUBLIC_URL        # same value as BETTER_AUTH_URL
+        sync: false
+      # Optional integrations — leave UNSET to fail honestly (health reports "missing").
+      - key: POSTMARK_SERVER_TOKEN
+        sync: false
+      - key: POSTMARK_MESSAGE_STREAM
+        sync: false
+      - key: EMAIL_FROM_ADDRESS
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: BILLING_WEBHOOK_SECRET   # Stripe TEST-mode signing secret for /api/v1/webhooks/billing only
+        sync: false
+      - key: BILLING_LIVEMODE
+        value: "false"
+
+  # Worker as a free WEB service (see header). Same process as `pnpm start` in apps/worker.
+  - type: web
+    name: revessent-worker-staging
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: revessent
+    branch: main
+    buildCommand: corepack enable && corepack pnpm install --frozen-lockfile
+    startCommand: corepack pnpm --filter @revessent/worker start
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: 24.14.1
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "8081"
+      - key: WORKER_HEALTH_PORT     # must equal PORT so Render's port scan + health check reach apps/worker/src/health.ts
+        value: "8081"
+      - key: NEXT_PUBLIC_DEMO_MODE
+        value: "off"
+      - key: LOG_LEVEL
+        value: info
+      - key: WORKER_POLL_MS         # 30 s to keep Upstash Free command usage low (default 15 s)
+        value: "30000"
+      - key: DATABASE_URL           # Supabase, role revessent_app, SESSION pooler :5432 (advisory session locks; NOT :6543)
+        sync: false
+      - key: APP_DATABASE_URL
+        sync: false
+      - key: SCHEDULER_DATABASE_URL # Supabase owner role, session pooler :5432 (org enumeration only)
+        sync: false
+      - key: REDIS_URL              # Upstash rediss:// URL (TLS)
+        sync: false
+      - key: BETTER_AUTH_SECRET     # must be the SAME value as the web service (copy from web env)
+        sync: false
+      - key: KEY_ENCRYPTION_KEY     # must be the SAME value as the web service
+        sync: false
+      - key: BETTER_AUTH_URL
+        sync: false
+      - key: APP_PUBLIC_URL
+        sync: false
+      - key: POSTMARK_SERVER_TOKEN
+        sync: false
+      - key: POSTMARK_MESSAGE_STREAM
+        sync: false
+      - key: EMAIL_FROM_ADDRESS
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
