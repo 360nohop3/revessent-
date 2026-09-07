@@ -1,0 +1,86 @@
+services:
+  - type: web
+    name: revessent-web
+    runtime: node
+    plan: free
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @revessent/web build
+    startCommand: pnpm --filter @revessent/web start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: APP_DATABASE_URL
+        sync: false
+      - key: BETTER_AUTH_SECRET
+        sync: false
+      - key: KEY_ENCRYPTION_KEY
+        sync: false
+      - key: BETTER_AUTH_URL
+        sync: false
+      - key: APP_PUBLIC_URL
+        sync: false
+      - key: LOG_LEVEL
+        value: info
+      - key: POSTMARK_SERVER_TOKEN
+        sync: false
+      - key: POSTMARK_MESSAGE_STREAM
+        value: outbound
+      - key: EMAIL_FROM_ADDRESS
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: AI_MODEL
+        value: claude-3-5-haiku-latest
+      - key: AI_TIMEOUT_MS
+        value: "12000"
+      - key: BILLING_WEBHOOK_SECRET
+        sync: false
+      - key: BILLING_LIVEMODE
+        value: "true"
+
+  - type: web
+    name: revessent-worker
+    runtime: node
+    plan: free
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @revessent/worker build
+    startCommand: pnpm --filter @revessent/worker start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: REDIS_URL
+        sync: false
+      - key: SCHEDULER_DATABASE_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: APP_DATABASE_URL
+        sync: false
+      - key: BETTER_AUTH_SECRET
+        sync: false
+      - key: KEY_ENCRYPTION_KEY
+        sync: false
+      - key: POSTMARK_SERVER_TOKEN
+        sync: false
+      - key: POSTMARK_MESSAGE_STREAM
+        value: outbound
+      - key: EMAIL_FROM_ADDRESS
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: AI_MODEL
+        value: claude-3-5-haiku-latest
+      - key: AI_TIMEOUT_MS
+        value: "12000"
+      - key: WORKER_HEALTH_PORT
+        value: "8081"
+      - key: WORKER_RETRIES_CONCURRENCY
+        value: "5"
+      - key: WORKER_NOTES_CONCURRENCY
+        value: "5"
+      - key: WORKER_POLL_MS
+        value: "15000"
+      - key: WORKER_LEASE_SECONDS
+        value: "300"
