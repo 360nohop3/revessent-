@@ -1,9 +1,9 @@
 # REVESSENT — Phase 8 Report: Production Hardening & Launch Readiness
 
-Date: 2026-09-07. Base: Phase 7 closed at `67e8bf3`. Phase 8 commits: `56b94bc` (corrections), plus test alignment + env template (this report's commit).
+Date: 2026-09-07. Base: Phase 7 closed at `67e8bf3`. Phase 8 commits: `56b94bc` (hardening corrections), `625bbee` (test alignment + env template), `7135620` (hardening report), `d901ab3` (**Hosted Recovery Checkout correction**), plus this report update.
 Method: read every phase report and the architecture, then audited the **repository as it is** — reports were treated as claims. Live Stripe / Postmark / Anthropic were **not** called; every provider interaction below ran against the existing deterministic fixtures. Nothing was deployed.
 
-**FINAL VERDICT: `PRODUCTION READY WITH ACCEPTED NON-BLOCKING RISKS`** — conditional on the deployment-specific verifications in §24 (none of which can be performed from a sandbox).
+**STATUS: `CORRECTION COMPLETE — READY FOR INDEPENDENT FINAL AUDIT`** (see §28). The earlier hardening verdict at `7135620` was **reopened** by the owner: Hosted Recovery Checkout (previously deferred as P2) is required for the initial production launch. That correction is now implemented; this document does **not** declare production readiness — it awaits independent review.
 
 ---
 
@@ -203,11 +203,11 @@ No data-loss vulnerability was found in application code (no destructive endpoin
 | R2 | MEDIUM | db | in-memory filtering of org-wide lists | latency at 1k+ cases | paginate when growth demands | deferred |
 | R3 | MEDIUM | db | `on delete cascade` from organizations | operator footgun on manual delete | never delete orgs manually; erasure job later | documented |
 | R4 | LOW | worker | multi-replica discovery duplicates work (safe) | wasted cycles | leader lock if scaling workers | deferred |
-| R5 | LOW | frontend | recovery-token page copy references "Phase 5 backend" | cosmetic | update with checkout session work | deferred product |
+| R5 | LOW | frontend | recovery-token page copy references "Phase 5 backend" | cosmetic | replaced by the Hosted Checkout correction (§28) | **fixed `d901ab3`** |
 | R6 | LOW | auth | no TOTP/passkeys; no HIBP check | account takeover resilience | product roadmap | deferred product |
 | R7 | LOW | crypto | no `KEY_ENCRYPTION_KEY` re-encrypt job | rotation requires re-connect | build when first rotation is scheduled | deferred |
 | P1 | DEFERRED PRODUCT | billing | Ember member cap reported not enforced (Phase 7 D1) | cost | owner decision | — |
-| P2 | DEFERRED PRODUCT | checkout | Stripe Checkout Session / hosted card update not built | recovery checkout ends at 501 | next product phase | — |
+| P2 | **REOPENED → FIXED** | checkout | Hosted Recovery Checkout not built; `/c/{token}` confirm ended at 501 | member recovery link could not collect payment | owner decision: required for v1 launch — implemented as Stripe **hosted invoice page** hand-off (§28) | **fixed `d901ab3`** |
 | P3 | DEFERRED PRODUCT | digest | `weekly_digest` no consumer | — | — | — |
 
 ## 22. Corrections made (files)
@@ -234,16 +234,101 @@ R1–R7 above. None affects financial integrity, tenant isolation or authenticat
 **HIGH** — A3–A6 fixed; remaining HIGH: none in code. Deployment: items 1–3 and 6 of §24 must be completed before real customers.
 **MEDIUM** — R1 CSP, R2 pagination, R3 cascade discipline; A7–A9 fixed.
 **LOW** — R4–R7, A10 fixed.
-**DEFERRED PRODUCT WORK** — P1–P3, TOTP/passkeys, HIBP, key re-encrypt job, weekly digest, Stripe Checkout Session.
+**DEFERRED PRODUCT WORK** — P1, P3, TOTP/passkeys, HIBP, key re-encrypt job, weekly digest. (P2 Hosted Recovery Checkout: no longer deferred — §28.)
 
 ## 26. Scope confirmation
 
 No new product features. No changes to payment execution, retry engine, tenant/billing webhook processing, AI/communication logic, entitlement resolver or job architecture (verified via `git diff 67e8bf3..HEAD --stat`: changes confined to auth lifecycle, rate limiting, config gates, logging, health, headers, views for existing flows, one migration, tests, env template). No Phase 9 created. Nothing deployed; no live provider called.
 
-## 27. Final verdict
+## 27. Hardening-pass verdict (as of `7135620`, superseded by §28)
 
-**PRODUCTION READY WITH ACCEPTED NON-BLOCKING RISKS**
+*Recorded verbatim for the audit trail. This verdict was issued for the hardening pass alone and is **not** the current status.*
+
+**PRODUCTION READY WITH ACCEPTED NON-BLOCKING RISKS** *(superseded)*
 
 Gates (all re-run after corrections): full Vitest **52 files / 507 tests passed, 0 skipped**; TypeScript + ESLint 18/18; production build 2/2; fresh migrations 0000–0024; upgrade replays from 4C, 4D, 5, 6, 7 (rows preserved, RLS complete, grants verified); concurrency (seats, billing events, retry final attempt, rate-limit 20-way); webhook duplicate/out-of-order; worker crash/restart A–E; payment unknown-outcome; entitlement downgrade; suppression; production config gates; secret scan clean; dependency audit 1 dev-only moderate; scope audit clean.
 
 Verified in sandbox = everything above. Not live-tested = Stripe, Postmark, Anthropic network paths. Requires deployment-specific verification = §24.
+
+---
+
+## 28. Phase 8 correction — Hosted Recovery Checkout (`d901ab3`)
+
+### 28.1 Why it was reopened
+
+The hardening pass (§21 P2) recorded that the member-facing recovery link `/c/{token}` could show the amount but could not collect payment — `POST /api/v1/c/{token}` returned an honest 501 and the page ended in a "Stripe-hosted form opens here in production" placeholder. The owner ruled that **Hosted Recovery Checkout is required for the initial production launch (Option A)**. Phase 8 was reopened for this single correction; nothing else in Phase 8 was reopened and no Phase 9 was created.
+
+### 28.2 Binding decision (Architecture App. B B-2)
+
+Architecture §8.6 / B-2 left the exact Stripe-hosted binding open (Checkout-Session-pays-invoice vs hosted-invoice-page vs Elements; "Phase 5 day-1 spike"). No Phase 4C–7 report records a decision and no code existed. The owner selected **Stripe's hosted invoice page for the same open invoice** (confirmed in-session). Rationale, all verified against the repo:
+
+- It is **not a new payment execution path**. REVESSENT makes no charge call, never sends an amount/currency/customer/line-item to Stripe, and builds no URL. The only provider call is the existing read-only Phase 4C preflight (`getInvoiceForExecution`, `invoices.retrieve`), which now also surfaces the invoice's own `hosted_invoice_url`. Stripe collects **exactly the invoice's `amount_remaining`** on its own SAQ-A surface.
+- **Idempotent by construction**: the durable identity is (case, provider invoice). Stripe hosts one page per invoice and its invoice state machine cannot pay an invoice twice — double-click / refresh / multi-tab / revisit all resolve to the same page. No per-request random identity exists anywhere.
+- **Completion is provider truth only**: payment on that page produces `invoice.paid`, which the Phase 4A/4B webhook → `applyProviderInvoice` path already consumes. The same choke point also serves sync and reconciliation, so a lost webhook converges via the existing reconciliation.
+- A Checkout Session in `mode: setup` + server-side `invoices.pay` (the alternative) would have required a new webhook type, an asynchronous charge after the customer left, and a payment-method-attach step — more moving parts inside a correction that must not touch the 4C engine.
+
+### 28.3 What was built (files)
+
+| File | Change |
+|---|---|
+| `packages/server/src/services/checkout.ts` | `startCheckout(db, token)` (member action) and `applyCheckoutCompletion(tx, orgId, paymentId)` (provider-truth completion). `confirmCheckout` (501) removed. `tokenInfo` now reports `used` when the local payment is already paid / case recovered. |
+| `packages/server/src/services/sync.ts` | `applyProviderInvoice` calls `applyCheckoutCompletion` **in the same transaction** when the written status is `paid` — the single choke point shared by webhook, sync and reconciliation. |
+| `packages/server/src/services/execute.ts` | `providerInvoiceFault` exported (one line). The 4C rules are reused verbatim; no execution logic changed. |
+| `packages/integrations/src/{gateway,stripe-client,fixtures}.ts` | `getInvoiceForExecution` additionally returns `hostedInvoiceUrl` (read from the same retrieve; `null` when absent). Fixture hosted URLs now use the real provider origin so the origin guard is exercised. |
+| `packages/db/drizzle/0025_checkout_start.sql` (+journal, schema) | `recovery_checkouts.started_at`, `start_count` — records the hand-off, never completion. Forward-only; historical migrations untouched. |
+| `packages/contracts/src/{schemas,api,real/realClient,mock/mockApi}.ts` | `RecoveryCheckoutStart` (`ready|already_paid|expired|unavailable|provider_unavailable|provider_error|unknown`, `url?`), `api.subscriber.startRecoveryCheckout`. Demo client returns an honest `provider_unavailable`. |
+| `apps/web/src/app/api/v1/c/[token]/route.ts` | `POST` = start. Token-shape check, strict empty body (nothing from the client is trusted), same-origin check, per-IP limiter (20/min, existing in-memory `rateLimit`) bounding provider lookups. |
+| `apps/web/src/views/recovery-token-view.tsx` | Placeholder removed. Same visual language; states: loading → "Continue to secure payment" → preparing → redirect to Stripe (with a fallback link) / nothing-left-to-pay / expired / unavailable / provider setup / temporary provider error (retry) / unrecognized / network error. "Nothing has been charged" on every refusal. Demo token hint shown only in demo mode. |
+| `packages/server/test/checkout-hosted.test.ts` | 26 tests (below). |
+
+### 28.4 Flow and invariants
+
+```
+member → GET /c/{token}      (existing token_flow RLS read; state + amount only)
+       → POST /c/{token}     token-flow resolve (RLS) → local gates → org's ACTIVE connection
+                             → READ provider invoice (4C boundary) → providerInvoiceFault(customer,
+                             currency, amount_due == amount_remaining == local amount, payable state)
+                             → require provider hosted_invoice_url on https://invoice.stripe.com/
+                             → started_at/start_count, audit checkout.started → {state:"ready", url}
+       → Stripe hosted page  (card entry, 3DS, receipt — provider-owned)
+       → invoice.paid        webhook (4B) / sync / reconcile → applyProviderInvoice → payments.paid
+                             → applyCheckoutCompletion: started open checkout → case=recovered
+                             (closedReason payment_recovered, source=checkout), attribution unique
+                             per payment, audit case.recovered{source:checkout}
+```
+
+Invariants checked in code and tests: provider/customer identity, invoice, amount, currency verified against provider truth before every hand-off; nothing defaulted (null → refusal); `paid`/`void`/partial/mismatched/unsupported → refusal; browser input limited to the token; org ids / case ids / DB ids never returned; a success redirect changes nothing (there is no success endpoint at all); local rows cannot fabricate `paid`; a member click does **not** move the case status (a click is not a financial event, and moving it would stall 4D policy on abandonment); attribution source `retry` vs `checkout` is decided by which truth path lands first, unique per payment; foreign/absent hosted URLs are refused (never constructed locally).
+
+### 28.5 Verification (all run after the correction)
+
+- `checkout-hosted.test.ts` **26/26**: token security (valid / malformed / forged / expired / rotated / cross-org / client cannot influence); financial boundary (provider already paid, local already paid, amount changed, currency & customer mismatch, void, missing provider fields, missing or foreign hosted URL, revoked & disconnected connection, outage & network → retryable error, terminal case); idempotency (5 concurrent + repeated starts → one identical URL, 0 payment calls, 0 execution rows); completion (redirect-before-webhook, webhook-before-redirect, duplicate + delayed + out-of-order deliveries, paid via sync only, abandoned, paid without a started checkout → not attributed to checkout, unpaid provider truth never recovers); 4C/4D regression (manual execution still preflights and pays once alongside an open link; automated retry numbering unaffected); logging hygiene (audit rows contain no raw token, hosted URL, key or webhook secret; member sees a state, never a provider message).
+- Full Vitest: **53 files / 533 tests passed, 0 skipped** (was 52/507). Includes payment-execution, retry-identity, retry-automation, webhook-receive/lifecycle, worker, entitlements, communication, RLS, concurrency suites unchanged and green.
+- TypeScript + ESLint **18/18**; production build (`NEXT_PUBLIC_DEMO_MODE=off`) **2/2**.
+- Migrations: fresh **0000–0025** applied; upgrade replay 0000–0024 with seeded org/customer/payment/case/checkout rows → 0025: row preserved (`status=open, started_at=null, start_count=0`), **0 tenant tables without RLS**, `recovery_checkouts` grants SELECT/INSERT/UPDATE/DELETE for `revessent_app`, `audit_logs` still INSERT,SELECT only. Token-flow RLS policies (0003/0005/0006/0023) untouched and exercised by the new tests.
+- Logging review: `checkout.ts` and the route contain no log statements; audit diffs carry reason codes, amounts and ids only (redaction applied as before). Secret scan of the tree: clean (test fixtures only).
+
+### 28.6 Live provider status — honest statement
+
+- **Fixture-tested**: every path above, against the deterministic fixture gateway and real signed webhook receipt.
+- **Integration-tested**: real Postgres RLS token flow, real webhook signature verification, real migration replay.
+- **Live Stripe: NOT AVAILABLE** in this environment (no test-mode credentials were provided; none were fabricated). The one live-dependent assumption is that `invoices.retrieve` returns `hosted_invoice_url` for open/uncollectible invoices on the connected account with the restricted key's invoice read scope — a documented Stripe field, but **unverified against a live account here**. If a live account returns `null`, the member sees the honest `provider_unavailable` state and nothing is charged. The independent audit should run one live test-mode pass: connect → failed invoice → `/c/{token}` → pay on Stripe → webhook → case recovered.
+
+### 28.7 Remaining genuine risks (checkout-specific)
+
+| # | Risk | Assessment |
+|---|---|---|
+| C1 | `hosted_invoice_url` behaviour on live accounts (above) | fail-closed; needs one live test-mode pass |
+| C2 | Hosted invoice page collects `amount_remaining`; if the invoice changes between our verification and the customer's payment, Stripe collects the **new** provider amount | provider-side truth is by design the authority; local mismatch is caught on the next start and on `invoice.paid`; no REVESSENT-side charge exists to be wrong |
+| C3 | Member start limiter is the existing in-memory per-process limiter (not the durable auth limiter) | bounds provider reads only; no financial effect; multi-replica bypass = more read calls |
+| C4 | Checkout row `expired` status is never written by a sweep (`checkout.expire` job not built); expiry is enforced by `expires_at` at read time | functionally equivalent; cosmetic for reporting |
+| C5 | No customer-facing "payment confirmed" page after Stripe redirect (Stripe's own receipt/thank-you is shown; our `/c/{token}` reports "Nothing left to pay" once truth lands) | honest by construction; product polish only |
+
+### 28.8 Scope confirmation for the correction
+
+`git diff 7135620..d901ab3 --stat`: checkout service, one line in sync (completion hook), one `export` in execute, additive gateway field, contracts, one route, one view, one forward migration, one test file. No change to payment execution, retry engine, webhook receipt/verification, entitlements, communication, AI, worker, infra. No new payment methods, subscriptions, portal, retries, email or UI redesign. Nothing deployed.
+
+## 29. Final status
+
+**CORRECTION COMPLETE — READY FOR INDEPENDENT FINAL AUDIT**
+
+Production readiness is **not** declared here. The independent audit should confirm §28.4 invariants in code, the §28.5 gates, and perform the live test-mode pass described in §28.6.
