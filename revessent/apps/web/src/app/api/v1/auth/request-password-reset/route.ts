@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { auth, enforceAuthRateLimit } from "@revessent/server";
+import { auth, appDb, enforceAuthRateLimitDurable } from "@revessent/server";
 import { toProblem } from "@/lib/api-route";
 
 const Body = z.object({ email: z.string().email() });
@@ -8,7 +8,7 @@ const Body = z.object({ email: z.string().email() });
 export async function POST(req: Request) {
   try {
     const parsed = Body.safeParse(await req.json().catch(() => null));
-    if (parsed.success) enforceAuthRateLimit(req, parsed.data.email, "pw-reset");
+    if (parsed.success) await enforceAuthRateLimitDurable(appDb(), req, parsed.data.email, "pw-reset");
     if (!parsed.success) return Response.json(
       { type: "/errors/validation", title: "Validation failed", status: 400, detail: "Enter a valid email." },
       { status: 400, headers: { "content-type": "application/problem+json" } });

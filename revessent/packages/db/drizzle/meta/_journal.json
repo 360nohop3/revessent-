@@ -169,6 +169,13 @@
       "when": 1788800000000,
       "tag": "0023_entitlements_billing_state",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788900000000,
+      "tag": "0024_auth_rate_limits",
+      "breakpoints": true
     }
   ]
 }

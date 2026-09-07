@@ -33,7 +33,7 @@ export async function createOrg(
     throw new ProblemError("validation", "Workspace URL may contain lowercase letters, numbers and dashes (2–63 chars).");
   }
   if (!user.emailVerified) {
-    throw new ProblemError("forbidden", "Verify your email before creating a workspace (verification delivery arrives with Phase 4 email).");
+    throw new ProblemError("forbidden", "Verify your email before creating a workspace — open the link we emailed you.");
   }
   const org = await withIdentityTx(db, user.id, async (tx) => {
     const [existing] = await tx.select().from(schema.organizations).where(eq(schema.organizations.slug, input.slug));

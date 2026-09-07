@@ -1,8 +1,8 @@
 export { auth } from "./auth/auth.js";
-export { appDb, getSessionUser, requireSession, requireOrgRole, assertSameOrigin, type OrgContext, type SessionUser } from "./context.js";
+export { appDb, pingDatabase, getSessionUser, requireSession, requireOrgRole, assertSameOrigin, type OrgContext, type SessionUser } from "./context.js";
 export { can, roleHasAtLeast, type Role, type AuthzAction } from "./authz/rbac.js";
 export { ProblemError, problemResponse, safeInternalError, type ProblemType } from "./http/problems.js";
-export { rateLimit, resetRateLimits, enforceAuthRateLimit } from "./http/ratelimit.js";
+export { rateLimit, resetRateLimits, enforceAuthRateLimit, enforceAuthRateLimitDurable, durableRateLimit, clientIp } from "./http/ratelimit.js";
 export { audit } from "./services/audit.js";
 export * as orgsService from "./services/orgs.js";
 export * as overviewService from "./services/overview.js";

@@ -7,7 +7,14 @@ export type LogLevel = "debug" | "info" | "warn" | "error";
 
 const ORDER: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, error: 40 };
 
-let minLevel: LogLevel = "warn";
+/** Phase 8: LOG_LEVEL env (server/worker) selects the threshold; default warn
+ *  (browser bundles have no process.env.LOG_LEVEL and keep the default). */
+function initialLevel(): LogLevel {
+  const raw = typeof process !== "undefined" ? process.env?.LOG_LEVEL : undefined;
+  return raw && raw in ORDER ? (raw as LogLevel) : "warn";
+}
+
+let minLevel: LogLevel = initialLevel();
 
 export function setLogLevel(level: LogLevel): void {
   minLevel = level;

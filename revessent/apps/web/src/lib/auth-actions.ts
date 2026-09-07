@@ -54,3 +54,41 @@ export async function createWorkspace(name: string, slug: string): Promise<Start
   const problem = (await res.json().catch(() => null)) as { detail?: string } | null;
   return { ok: false, error: problem?.detail ?? "Couldn't create the workspace. Try again." };
 }
+
+/* ---------------- Phase 8: account lifecycle (real mode only) ---------------- */
+
+/** Always resolves ok — the server answers identically whether or not the account exists. */
+export async function requestPasswordReset(email: string): Promise<StartResult> {
+  if (demoMode()) return { ok: true };
+  const res = await fetch("/api/v1/auth/request-password-reset", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email })
+  });
+  if (res.ok) return { ok: true };
+  const problem = (await res.json().catch(() => null)) as { detail?: string } | null;
+  return { ok: false, error: problem?.detail ?? "Couldn't start the reset. Try again." };
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<StartResult> {
+  if (demoMode()) return { ok: false, error: "Password resets are not available in the demo." };
+  const res = await fetch("/api/v1/auth/reset-password", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token, newPassword })
+  });
+  if (res.ok) return { ok: true };
+  const problem = (await res.json().catch(() => null)) as { detail?: string; message?: string } | null;
+  return { ok: false, error: problem?.detail ?? problem?.message ?? "This reset link is invalid or has expired. Request a new one." };
+}
+
+export async function verifyEmail(token: string): Promise<StartResult> {
+  if (demoMode()) return { ok: false, error: "Email verification is not available in the demo." };
+  const res = await fetch("/api/v1/auth/verify-email", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token })
+  });
+  if (res.ok) return { ok: true };
+  return { ok: false, error: "This verification link is invalid or has expired. Sign in and request a new one." };
+}
+
+export async function resendVerification(): Promise<StartResult> {
+  if (demoMode()) return { ok: true };
+  const res = await fetch("/api/v1/auth/resend-verification", { method: "POST" });
+  return res.ok ? { ok: true } : { ok: false, error: "Couldn't resend the verification email. Try again shortly." };
+}

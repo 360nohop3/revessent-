@@ -72,6 +72,12 @@ describe("migrations are deterministic", () => {
       const supUq = await check.query("select 1 from pg_indexes where tablename='communication_suppressions' and indexname='communication_suppressions_org_customer_channel_uq'");
       expect(supUq.rows).toHaveLength(1);
 
+      // Phase 8 (0024): shared auth rate-limit counters — hashed key PK, app-role DML
+      const rl = await check.query("select column_name from information_schema.columns where table_name='auth_rate_limits' order by 1");
+      expect(rl.rows.map((r) => r.column_name)).toEqual(["hits", "key_hash", "window_start"]);
+      const rlGrant = await check.query("select privilege_type from information_schema.table_privileges where grantee='revessent_app' and table_name='auth_rate_limits' order by 1");
+      expect(rlGrant.rows.map((r) => r.privilege_type)).toEqual(["DELETE", "INSERT", "SELECT", "UPDATE"]);
+
       // Phase 7 (0023): billing state columns, lookup indexes, SECURITY DEFINER
       // resolvers granted to the app role, organizations UPDATE limited to (plan, updated_at)
       const billCols = await check.query(

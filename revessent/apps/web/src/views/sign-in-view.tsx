@@ -68,7 +68,7 @@ export function SignInView() {
         <FormField id="email" label="Work email" error={errors.email} required>
           <Input type="email" name="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </FormField>
-        <FormField id="password" label="Password" error={errors.password} hint="Any value of 8+ characters works in the demo." required>
+        <FormField id="password" label="Password" error={errors.password} hint={demoMode() ? "Any value of 8+ characters works in the demo." : undefined} required>
           <Input type="password" name="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
         </FormField>
         {formError ? (
@@ -81,7 +81,7 @@ export function SignInView() {
           No account yet? <Link className="text-accent-ink underline underline-offset-2" href="/sign-up">Start a pilot</Link>
         </p>
         <p>
-          Forgot your password? <Link className="text-accent-ink underline underline-offset-2" href="/forgot-password">Reset it</Link> — resets aren't wired up in this build.
+          Forgot your password? <Link className="text-accent-ink underline underline-offset-2" href="/forgot-password">Reset it</Link>{demoMode() ? " — resets aren't available in the demo." : "."}
         </p>
       </div>
     </Surface>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { z } from "zod";
@@ -27,6 +28,7 @@ export function OnboardingView() {
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [needsVerification, setNeedsVerification] = useState(false);
 
   async function create() {
     const parsed = OrgSchema.safeParse({ name, slug, ack: ack ? true : undefined } as unknown);
@@ -42,7 +44,14 @@ export function OnboardingView() {
     try {
       // Demo: creates the org in the in-memory fixture store, then refreshes the
       // demo session cookie so the new membership appears in the switcher.
-      await createWorkspace(name, slug);
+      const result = await createWorkspace(name, slug);
+      if (!result.ok) {
+        // Phase 8: the server answers 403 until the account email is verified.
+        setNeedsVerification(/verify your email/i.test(result.error ?? ""));
+        setFormError(result.error ?? "Could not create the workspace.");
+        setCreating(false);
+        return;
+      }
       if (demoMode()) await fetch("/api/demo/session", { method: "POST" }); // refresh demo memberships
       router.push(`/app/${slug}/overview`);
     } catch (err) {
@@ -115,6 +124,11 @@ export function OnboardingView() {
             <Button loading={creating} onClick={create}>Create workspace</Button>
           </div>
           {formError ? <p role="alert" className="mt-3 text-[13px] text-err">{formError}</p> : null}
+          {needsVerification ? (
+            <p className="mt-2 text-[13px] text-ink-3">
+              <Link className="text-accent-ink underline underline-offset-2" href="/verify-email">Resend the verification email</Link>
+            </p>
+          ) : null}
         </Surface>
       ) : null}
 

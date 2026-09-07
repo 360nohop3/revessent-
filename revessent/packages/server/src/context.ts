@@ -98,3 +98,9 @@ export function assertSameOrigin(req: Request): void {
 }
 
 export { demoMode };
+
+/** Phase 8 readiness probe: one round-trip on the app pool; throws on failure. */
+export async function pingDatabase(): Promise<void> {
+  const { sql } = await import("drizzle-orm");
+  await appDb().execute(sql`select 1`);
+}

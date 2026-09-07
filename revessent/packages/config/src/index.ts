@@ -76,9 +76,24 @@ export function serverEnv(): ServerEnv {
       "Real mode (demo disabled) requires DATABASE_URL, BETTER_AUTH_SECRET (≥32 chars) and KEY_ENCRYPTION_KEY (32-byte base64)."
     );
   }
+  // Phase 8 (fail closed): production needs a public https origin — it is the
+  // auth base URL AND the origin registered with Stripe for tenant webhook
+  // endpoints (webhookEndpointUrl); a localhost fallback must never ship.
+  if (isProduction()) {
+    const url = parsed.data.BETTER_AUTH_URL ?? "";
+    if (!url.startsWith("https://")) {
+      throw new ConfigError("BETTER_AUTH_URL must be an https origin in production (auth base URL + webhook endpoint origin).");
+    }
+    if (process.env.NEXT_PUBLIC_DEMO_MODE === "on" || process.env.NEXT_PUBLIC_DEMO_MODE === "1") {
+      throw new ConfigError("NEXT_PUBLIC_DEMO_MODE must be unset in production.");
+    }
+  }
   cachedServerEnv = parsed.data;
   return cachedServerEnv;
 }
+
+/** Tests only: re-read the server environment. */
+export function resetServerEnvForTests(): void { cachedServerEnv = null; }
 
 /* ---------------- Phase 5: worker / queue environment ---------------- */
 

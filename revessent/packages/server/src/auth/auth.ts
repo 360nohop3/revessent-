@@ -9,7 +9,8 @@
  */
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { serverEnv, isProduction } from "@revessent/config";
+import { serverEnv, isProduction, communicationEnv } from "@revessent/config";
+import { sendAuthEmail } from "./auth-email.js";
 import { createDb } from "@revessent/db";
 import * as schema from "@revessent/db";
 import { hashPassword, verifyPassword } from "../crypto/argon2.js";
@@ -26,6 +27,13 @@ let instance: AuthInstance | null = null;
 function getAuth(): AuthInstance {
   instance ??= buildAuth();
   return instance;
+}
+
+/** Application-owned link for account emails (https enforced in production by communicationEnv). */
+function authLink(path: "/reset-password" | "/verify-email", token: string): string {
+  const url = new URL(path, communicationEnv().APP_PUBLIC_URL);
+  url.searchParams.set("token", token);
+  return url.toString();
 }
 
 function buildAuth() {
@@ -54,16 +62,21 @@ return betterAuth({
       }),
       verify: async ({ password, hash }: { password: string; hash: string }) => verifyPassword(password, hash)
     },
-    sendResetPassword: async ({ user }: { user: { email: string } }) => {
-      // CONTRACT ONLY (brief §18): production email arrives with Phase 4.
-      console.info(`[auth] password-reset token issued for ${user.email} — email sending arrives in Phase 4`);
+    // Phase 8: a compromised password must not keep old sessions alive.
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user, token }: { user: { email: string }; token: string }) => {
+      // Phase 8: real delivery through the Phase 6 provider boundary. Better
+      // Auth's own URL targets its unmounted /api/auth handler, so the link is
+      // built against OUR page (/reset-password → POST /api/v1/auth/reset-password).
+      // The token is never logged; production fails closed without a provider.
+      await sendAuthEmail("reset_password", user.email, authLink("/reset-password", token), communicationEnv().EMAIL_FROM_ADDRESS);
     }
   },
   emailVerification: {
-    sendVerificationEmail: async ({ user }: { user: { email: string } }) => {
-      // CONTRACT ONLY (brief §7/§18): the verification token row is persisted by
-      // Better Auth; nothing is sent until Phase 4.
-      console.info(`[auth] verification token issued for ${user.email} — email sending arrives in Phase 4`);
+    sendOnSignUp: true,
+    expiresIn: 60 * 60, // 1h
+    sendVerificationEmail: async ({ user, token }: { user: { email: string }; token: string }) => {
+      await sendAuthEmail("verify_email", user.email, authLink("/verify-email", token), communicationEnv().EMAIL_FROM_ADDRESS);
     }
   },
   session: {

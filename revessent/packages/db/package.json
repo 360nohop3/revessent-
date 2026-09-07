@@ -14,7 +14,7 @@
   "dependencies": {
     "drizzle-orm": "0.45.2",
     "pg": "8.23.0",
-    "uuid": "13.0.0"
+    "uuid": "13.0.1"
   },
   "devDependencies": {
     "@embedded-postgres/linux-x64": "16.14.0-beta.17",

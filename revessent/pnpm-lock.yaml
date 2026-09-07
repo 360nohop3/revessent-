@@ -194,8 +194,8 @@ importers:
         specifier: 8.23.0
         version: 8.23.0
       uuid:
-        specifier: 13.0.0
-        version: 13.0.0
+        specifier: 13.0.1
+        version: 13.0.1
     devDependencies:
       '@embedded-postgres/linux-x64':
         specifier: 16.14.0-beta.17
@@ -3229,8 +3229,8 @@ packages:
       '@types/react':
         optional: true
 
-  uuid@13.0.0:
-    resolution: {integrity: sha512-XQegIaBTVUjSHliKqcnFqYypAd4S+WCYt5NIeRs6w/UAry7z8Y9j5ZwRRL4kzq9U3sD6v+85er9FvkEaBpji2w==}
+  uuid@13.0.1:
+    resolution: {integrity: sha512-9ezox2roIft6ExBVTVqibSd5dc5/47Sw/uY6b4SjQUT2TzQ0tltNquWA46y4xPQmdZYqvnio22SgWd41M86+jw==}
     hasBin: true
 
   vite@8.2.2:
@@ -5789,7 +5789,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.18
 
-  uuid@13.0.0: {}
+  uuid@13.0.1: {}
 
   vite@8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13):
     dependencies:

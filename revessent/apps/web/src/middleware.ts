@@ -5,8 +5,13 @@ import { NextResponse, type NextRequest } from "next/server";
  * security headers on every response. CSP nonce-based strictness lands with
  * the Phase 8 hardening pass; navigation/auth/data work with effects disabled.
  */
-export function middleware(_req: NextRequest) {
+export function middleware(req: NextRequest) {
   const res = NextResponse.next();
+  // Phase 8: API and token-bearing pages are never cacheable by shared caches.
+  const p = req.nextUrl.pathname;
+  if (p.startsWith("/api/") || p.startsWith("/c/") || p.startsWith("/u/") || p.startsWith("/unsubscribe") || p.startsWith("/reset-password") || p.startsWith("/verify-email")) {
+    res.headers.set("Cache-Control", "no-store");
+  }
   res.headers.set("X-Content-Type-Options", "nosniff");
   res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   res.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");

@@ -627,3 +627,10 @@ export const jobRuns = pgTable("job_runs", {
   index("job_runs_org_created_idx").on(t.orgId, t.createdAt),
   index("job_runs_status_idx").on(t.status)
 ]);
+
+/** Phase 8: shared auth rate-limit counters (hashed keys; no tenant data). */
+export const authRateLimits = pgTable("auth_rate_limits", {
+  keyHash: text("key_hash").primaryKey(),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull().defaultNow(),
+  hits: integer("hits").notNull().default(1)
+});
