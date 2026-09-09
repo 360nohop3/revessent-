@@ -3,7 +3,7 @@ services:
     name: revessent-web
     runtime: node
     plan: free
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @revessent/web build
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @revessent/web build
     startCommand: pnpm --filter @revessent/web start
     healthCheckPath: /api/health
     envVars:
@@ -44,7 +44,7 @@ services:
     name: revessent-worker
     runtime: node
     plan: free
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @revessent/worker build
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @revessent/worker build
     startCommand: pnpm --filter @revessent/worker start
     healthCheckPath: /healthz
     envVars:
