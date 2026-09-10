@@ -39,9 +39,10 @@ services:
         value: 24.14.1
       - key: NODE_ENV
         value: production
-      # apps/web `start` script binds -p 3000; keep Render's PORT in agreement.
+      # apps/web `start` script binds -p 10000 (Render's default web port); PORT
+      # MUST match it or Render routes traffic to a port nothing listens on.
       - key: PORT
-        value: "3000"
+        value: "10000"
       - key: NEXT_PUBLIC_DEMO_MODE
         value: "off"
       - key: LOG_LEVEL
